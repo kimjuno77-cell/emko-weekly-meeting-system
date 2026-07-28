@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 
 // Third-party packages for export
+// @ts-ignore
 import html2pdf from 'html2pdf.js';
 import * as XLSX from 'xlsx';
 
