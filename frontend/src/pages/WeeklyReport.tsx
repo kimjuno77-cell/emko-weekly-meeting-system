@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getWeeklyUpdatesByWeek } from '@/services/weeklyUpdateService';
 import { getAllTeams } from '@/services/teamService';
-import { Team, WeeklyUpdate, PendingItem, Project, ProjectPhase, ProjectMobilization } from '@/types';
+import { Team, WeeklyUpdate, PendingItem, ProjectMobilization } from '@/types';
 import { startOfWeek, endOfWeek, format, addWeeks, subWeeks } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
@@ -27,7 +27,6 @@ const WeeklyReport = () => {
   const [highPriorityPending, setHighPriorityPending] = useState<PendingItem[]>([]);
   
   // M-Plan Data for Excel Export
-  const [projects, setProjects] = useState<Project[]>([]);
   const [mobilizations, setMobilizations] = useState<ProjectMobilization[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -62,13 +61,11 @@ const WeeklyReport = () => {
       if (pendingData) setHighPriorityPending(pendingData);
 
       // Fetch M-Plan data for Excel Export
-      const [projRes, mobRes] = await Promise.all([
-        supabase.from('projects').select('*, phases:project_phases(*)'),
-        supabase.from('project_mobilizations').select('*, project:projects(name), user:user_profiles!project_mobilizations_user_id_fkey(full_name), phase:project_phases(phase_name)')
-      ]);
+      const { data: mobData } = await supabase
+        .from('project_mobilizations')
+        .select('*, project:projects(name), user:user_profiles!project_mobilizations_user_id_fkey(full_name), phase:project_phases(phase_name)');
       
-      if (projRes.data) setProjects(projRes.data as Project[]);
-      if (mobRes.data) setMobilizations(mobRes.data as any[]);
+      if (mobData) setMobilizations(mobData as any[]);
 
     } catch (error) {
       console.error('리포트 조회 실패:', error);

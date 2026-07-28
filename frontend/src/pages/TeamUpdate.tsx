@@ -31,7 +31,6 @@ import {
   ArrowRightLeft,
   Sparkles,
   MessageSquare,
-  Paperclip,
   Clock
 } from 'lucide-react';
 import { parseISO } from 'date-fns';
