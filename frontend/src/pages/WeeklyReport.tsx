@@ -1,6 +1,6 @@
 // 설명: 주간회의 리포트 페이지 컴포넌트 (PDF 및 Excel 다운로드 포함)
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getWeeklyUpdatesByWeek } from '@/services/weeklyUpdateService';
 import { getAllTeams } from '@/services/teamService';
