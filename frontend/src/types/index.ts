@@ -92,6 +92,37 @@ export interface ProjectMobilization {
   phase?: ProjectPhase;
 }
 
+// 첨부파일
+export interface Attachment {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  content_type: string | null;
+  entity_type: string; // 'task', 'update', 'project' 등
+  entity_id: string;
+  uploaded_by: string | null;
+  created_at: string;
+
+  // 관계 데이터
+  uploader?: UserProfile;
+}
+
+// 댓글
+export interface Comment {
+  id: string;
+  content: string;
+  entity_type: string;
+  entity_id: string;
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+
+  // 관계 데이터
+  author?: UserProfile;
+}
+
+
 // 사용자 프로필
 export interface UserProfile {
   id: string;
@@ -152,6 +183,8 @@ export interface Task {
   // 관계 데이터
   weekly_update?: WeeklyUpdate;
   assignee?: UserProfile;
+  attachments?: Attachment[];
+  comments?: Comment[];
 }
 
 // Pending 항목

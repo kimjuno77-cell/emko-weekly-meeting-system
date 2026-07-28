@@ -30,9 +30,12 @@ import {
   User,
   ArrowRightLeft,
   Sparkles,
+  MessageSquare,
+  Paperclip,
   Clock
 } from 'lucide-react';
 import { parseISO } from 'date-fns';
+import TaskFeedback from '@/components/TaskFeedback';
 
 const TeamUpdate = () => {
   const { teamId } = useParams<{ teamId: string }>();
@@ -65,6 +68,9 @@ const TeamUpdate = () => {
   const [taskAssigneeName, setTaskAssigneeName] = useState('');
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
   const [taskPriority, setTaskPriority] = useState<PriorityLevel>('medium');
+
+  // 작업별 피드백 아코디언 상태
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     if (teamId) {
