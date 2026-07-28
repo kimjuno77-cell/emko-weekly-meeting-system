@@ -19,7 +19,7 @@ const MobilizationPlan: React.FC = () => {
   // Form State
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [selectedPhaseId, setSelectedPhaseId] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [roleDesc, setRoleDesc] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -95,8 +95,8 @@ const MobilizationPlan: React.FC = () => {
 
   const handleCreatePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjectId || !selectedUserId || !startDate || !endDate) {
-      toast.error('필수 항목을 모두 입력해주세요.');
+    if (!selectedProjectId || selectedUserIds.length === 0 || !startDate || !endDate) {
+      toast.error('프로젝트, 인원, 시작일, 종료일을 모두 입력해주세요.');
       return;
     }
 
@@ -108,17 +108,19 @@ const MobilizationPlan: React.FC = () => {
     try {
       setIsSubmitting(true);
       
+      const plansToInsert = selectedUserIds.map(userId => ({
+        project_id: selectedProjectId,
+        user_id: userId,
+        phase_id: selectedPhaseId || null,
+        role_description: roleDesc,
+        start_date: startDate,
+        end_date: endDate,
+        created_by: userProfile?.id,
+      }));
+
       const { error } = await supabase
         .from('project_mobilizations')
-        .insert({
-          project_id: selectedProjectId,
-          user_id: selectedUserId,
-          phase_id: selectedPhaseId || null,
-          role_description: roleDesc,
-          start_date: startDate,
-          end_date: endDate,
-          created_by: userProfile?.id,
-        });
+        .insert(plansToInsert);
 
       if (error) throw error;
 
@@ -137,7 +139,7 @@ const MobilizationPlan: React.FC = () => {
   const resetForm = () => {
     setSelectedProjectId('');
     setSelectedPhaseId('');
-    setSelectedUserId('');
+    setSelectedUserIds([]);
     setRoleDesc('');
     setStartDate('');
     setEndDate('');
@@ -286,20 +288,35 @@ const MobilizationPlan: React.FC = () => {
                   </select>
                 </div>
 
-                {/* 투입 인원 선택 */}
+                {/* 투입 인원 선택 (다중 선택 가능) */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">투입 인원 (팀원) *</label>
-                  <select
-                    value={selectedUserId}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-                    required
-                  >
-                    <option value="">투입할 인원을 선택하세요</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">투입 인원 (복수 선택 가능) *</label>
+                  <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                    {users.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-2">선택 가능한 인원이 없습니다.</p>
+                    ) : (
+                      users.map(u => (
+                        <label key={u.id} className="flex items-center space-x-3 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
+                          <input
+                            type="checkbox"
+                            checked={selectedUserIds.includes(u.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUserIds(prev => [...prev, u.id]);
+                              } else {
+                                setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                              }
+                            }}
+                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                          />
+                          <span className="text-sm text-slate-700">{u.full_name} <span className="text-slate-400 text-xs">({u.email})</span></span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  {selectedUserIds.length > 0 && (
+                    <p className="text-xs text-indigo-600 font-medium mt-1 ml-1">{selectedUserIds.length}명 선택됨</p>
+                  )}
                 </div>
 
                 {/* 담당 역할 입력 */}
