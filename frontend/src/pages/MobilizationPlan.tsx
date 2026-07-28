@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { ProjectMobilization, Project, ProjectPhase, UserProfile } from '../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
-import { Plus, X, Calendar, User, Briefcase } from 'lucide-react';
+import { Plus, X, Calendar, Briefcase } from 'lucide-react';
 
 const MobilizationPlan: React.FC = () => {
   const { userProfile } = useAuthStore();
