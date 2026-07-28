@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { ProjectMobilization, Project, ProjectPhase, UserProfile } from '../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
-import { Plus, X, Calendar, Briefcase } from 'lucide-react';
+import { Plus, X, Calendar, Briefcase, Trash2, Edit2 } from 'lucide-react';
 
 const MobilizationPlan: React.FC = () => {
   const { userProfile } = useAuthStore();
@@ -15,6 +15,8 @@ const MobilizationPlan: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [editPlanId, setEditPlanId] = useState<string | null>(null);
 
   // Form State
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -38,9 +40,9 @@ const MobilizationPlan: React.FC = () => {
       fetchPhasesForProject(selectedProjectId);
     } else {
       setPhases([]);
-      setSelectedPhaseId('');
+      if (!editPlanId) setSelectedPhaseId('');
     }
-  }, [selectedProjectId]);
+  }, [selectedProjectId, editPlanId]);
 
   const fetchPlans = async () => {
     try {
@@ -93,7 +95,38 @@ const MobilizationPlan: React.FC = () => {
     }
   };
 
-  const handleCreatePlan = async (e: React.FormEvent) => {
+  const openCreateModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (plan: ProjectMobilization) => {
+    setEditPlanId(plan.id);
+    setSelectedProjectId(plan.project_id);
+    setSelectedPhaseId(plan.phase_id || '');
+    setSelectedUserIds([plan.user_id]);
+    setRoleDesc(plan.role_description || '');
+    setStartDate(plan.start_date);
+    setEndDate(plan.end_date);
+    setIsModalOpen(true);
+  };
+
+  const handleDeletePlan = async (id: string, userName: string) => {
+    if (!window.confirm(`정말 [${userName}] 님의 투입 계획을 삭제하시겠습니까?`)) return;
+
+    try {
+      const { error } = await supabase.from('project_mobilizations').delete().eq('id', id);
+      if (error) throw error;
+      
+      toast.success('투입 계획이 삭제되었습니다.');
+      fetchPlans();
+    } catch (error: any) {
+      console.error('Error deleting plan:', error);
+      toast.error(`삭제 실패: ${error.message}`);
+    }
+  };
+
+  const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId || selectedUserIds.length === 0 || !startDate || !endDate) {
       toast.error('프로젝트, 인원, 시작일, 종료일을 모두 입력해주세요.');
@@ -108,35 +141,55 @@ const MobilizationPlan: React.FC = () => {
     try {
       setIsSubmitting(true);
       
-      const plansToInsert = selectedUserIds.map(userId => ({
-        project_id: selectedProjectId,
-        user_id: userId,
-        phase_id: selectedPhaseId || null,
-        role_description: roleDesc,
-        start_date: startDate,
-        end_date: endDate,
-        created_by: userProfile?.id,
-      }));
+      if (editPlanId) {
+        // 단일 건 수정
+        const { error } = await supabase
+          .from('project_mobilizations')
+          .update({
+            project_id: selectedProjectId,
+            user_id: selectedUserIds[0], // 수정 시에는 1명으로 제한됨
+            phase_id: selectedPhaseId || null,
+            role_description: roleDesc,
+            start_date: startDate,
+            end_date: endDate,
+          })
+          .eq('id', editPlanId);
 
-      const { error } = await supabase
-        .from('project_mobilizations')
-        .insert(plansToInsert);
+        if (error) throw error;
+        toast.success('투입 계획이 수정되었습니다.');
+      } else {
+        // 복수 건 신규 생성
+        const plansToInsert = selectedUserIds.map(userId => ({
+          project_id: selectedProjectId,
+          user_id: userId,
+          phase_id: selectedPhaseId || null,
+          role_description: roleDesc,
+          start_date: startDate,
+          end_date: endDate,
+          created_by: userProfile?.id,
+        }));
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from('project_mobilizations')
+          .insert(plansToInsert);
 
-      toast.success('투입 계획이 성공적으로 추가되었습니다.');
+        if (error) throw error;
+        toast.success('투입 계획이 성공적으로 추가되었습니다.');
+      }
+
       setIsModalOpen(false);
       resetForm();
       fetchPlans();
     } catch (error: any) {
-      console.error('Error creating plan:', error);
-      toast.error(`추가 실패: ${error.message}`);
+      console.error('Error saving plan:', error);
+      toast.error(`저장 실패: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const resetForm = () => {
+    setEditPlanId(null);
     setSelectedProjectId('');
     setSelectedPhaseId('');
     setSelectedUserIds([]);
@@ -156,7 +209,7 @@ const MobilizationPlan: React.FC = () => {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={openCreateModal}
             className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-indigo-500/20"
           >
             <Plus className="w-5 h-5" />
@@ -187,6 +240,7 @@ const MobilizationPlan: React.FC = () => {
                   <th className="px-6 py-4">담당 역할</th>
                   <th className="px-6 py-4">시작 예정일</th>
                   <th className="px-6 py-4">종료 예정일</th>
+                  {isAdmin && <th className="px-6 py-4 text-right">관리</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -232,6 +286,26 @@ const MobilizationPlan: React.FC = () => {
                         <span>{plan.end_date}</span>
                       </div>
                     </td>
+                    {isAdmin && (
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end space-x-2">
+                          <button 
+                            onClick={() => openEditModal(plan)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded bg-white border border-slate-200 hover:border-indigo-300 transition shadow-sm"
+                            title="수정"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeletePlan(plan.id, (plan as any).user?.full_name || '알 수 없음')}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded bg-white border border-slate-200 hover:border-red-300 transition shadow-sm"
+                            title="삭제"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -245,7 +319,9 @@ const MobilizationPlan: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800">인력 투입(Mobilization) 계획 추가</h2>
+              <h2 className="text-lg font-bold text-slate-800">
+                {editPlanId ? '투입 계획 수정' : '인력 투입(Mobilization) 계획 추가'}
+              </h2>
               <button 
                 onClick={() => { setIsModalOpen(false); resetForm(); }}
                 className="p-1 hover:bg-slate-200 rounded-lg transition text-slate-500"
@@ -255,7 +331,7 @@ const MobilizationPlan: React.FC = () => {
             </div>
             
             <div className="p-6 overflow-y-auto">
-              <form id="createPlanForm" onSubmit={handleCreatePlan} className="space-y-4">
+              <form id="planForm" onSubmit={handleSavePlan} className="space-y-4">
                 {/* 프로젝트 선택 */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">대상 프로젝트 *</label>
@@ -272,7 +348,7 @@ const MobilizationPlan: React.FC = () => {
                   </select>
                 </div>
 
-                {/* 투입 단계 선택 (프로젝트 선택 시 활성화) */}
+                {/* 투입 단계 선택 */}
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">투입 단계 (Phase)</label>
                   <select
@@ -288,33 +364,49 @@ const MobilizationPlan: React.FC = () => {
                   </select>
                 </div>
 
-                {/* 투입 인원 선택 (다중 선택 가능) */}
+                {/* 투입 인원 선택 (수정 시에는 단일 선택만 가능하도록 제한) */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">투입 인원 (복수 선택 가능) *</label>
-                  <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
-                    {users.length === 0 ? (
-                      <p className="text-sm text-slate-500 text-center py-2">선택 가능한 인원이 없습니다.</p>
-                    ) : (
-                      users.map(u => (
-                        <label key={u.id} className="flex items-center space-x-3 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
-                          <input
-                            type="checkbox"
-                            checked={selectedUserIds.includes(u.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedUserIds(prev => [...prev, u.id]);
-                              } else {
-                                setSelectedUserIds(prev => prev.filter(id => id !== u.id));
-                              }
-                            }}
-                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                          />
-                          <span className="text-sm text-slate-700">{u.full_name} <span className="text-slate-400 text-xs">({u.email})</span></span>
-                        </label>
-                      ))
-                    )}
-                  </div>
-                  {selectedUserIds.length > 0 && (
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    {editPlanId ? '투입 인원 *' : '투입 인원 (복수 선택 가능) *'}
+                  </label>
+                  {editPlanId ? (
+                    <select
+                      value={selectedUserIds[0] || ''}
+                      onChange={(e) => setSelectedUserIds([e.target.value])}
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      required
+                    >
+                      <option value="">투입할 인원을 선택하세요</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                      {users.length === 0 ? (
+                        <p className="text-sm text-slate-500 text-center py-2">선택 가능한 인원이 없습니다.</p>
+                      ) : (
+                        users.map(u => (
+                          <label key={u.id} className="flex items-center space-x-3 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
+                            <input
+                              type="checkbox"
+                              checked={selectedUserIds.includes(u.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedUserIds(prev => [...prev, u.id]);
+                                } else {
+                                  setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                                }
+                              }}
+                              className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                            />
+                            <span className="text-sm text-slate-700">{u.full_name} <span className="text-slate-400 text-xs">({u.email})</span></span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {!editPlanId && selectedUserIds.length > 0 && (
                     <p className="text-xs text-indigo-600 font-medium mt-1 ml-1">{selectedUserIds.length}명 선택됨</p>
                   )}
                 </div>
@@ -368,11 +460,11 @@ const MobilizationPlan: React.FC = () => {
               </button>
               <button
                 type="submit"
-                form="createPlanForm"
+                form="planForm"
                 disabled={isSubmitting}
                 className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition shadow-md shadow-indigo-500/20 disabled:opacity-50"
               >
-                {isSubmitting ? '저장 중...' : '투입 계획 저장'}
+                {isSubmitting ? '저장 중...' : (editPlanId ? '수정 완료' : '투입 계획 저장')}
               </button>
             </div>
           </div>

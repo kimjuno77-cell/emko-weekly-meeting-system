@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Project, ProjectPhase } from '../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
-import { Plus, X, Calendar, Edit2 } from 'lucide-react';
+import { Plus, X, Calendar, Edit2, Trash2 } from 'lucide-react';
 
 const DEFAULT_PHASES = ['설계', '구매', '제작', '검사', '설치', '시운전'];
 
@@ -11,9 +11,14 @@ const ProjectManagement: React.FC = () => {
   const { userProfile } = useAuthStore();
   const [projects, setProjects] = useState<(Project & { phases: ProjectPhase[] })[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDesc, setNewProjectDesc] = useState('');
+  const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  
+  const [projectName, setProjectName] = useState('');
+  const [projectDesc, setProjectDesc] = useState('');
+  const [projectStatus, setProjectStatus] = useState<'active' | 'completed' | 'on_hold'>('active');
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isAdmin = userProfile?.role === 'admin';
@@ -53,9 +58,40 @@ const ProjectManagement: React.FC = () => {
     }
   };
 
-  const handleCreateProject = async (e: React.FormEvent) => {
+  const openCreateModal = () => {
+    setEditProjectId(null);
+    setProjectName('');
+    setProjectDesc('');
+    setProjectStatus('active');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (project: Project) => {
+    setEditProjectId(project.id);
+    setProjectName(project.name);
+    setProjectDesc(project.description || '');
+    setProjectStatus(project.status as any);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteProject = async (id: string, name: string) => {
+    if (!window.confirm(`'${name}' 프로젝트를 정말 삭제하시겠습니까?\n하위 페이즈(Phase) 및 연관된 인력 투입 계획도 모두 삭제됩니다.`)) return;
+
+    try {
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (error) throw error;
+      
+      toast.success('프로젝트가 삭제되었습니다.');
+      fetchProjects();
+    } catch (error: any) {
+      console.error('Error deleting project:', error);
+      toast.error(`삭제 실패: ${error.message}`);
+    }
+  };
+
+  const handleSaveProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectName.trim()) {
+    if (!projectName.trim()) {
       toast.error('프로젝트 이름을 입력해주세요.');
       return;
     }
@@ -63,42 +99,55 @@ const ProjectManagement: React.FC = () => {
     try {
       setIsSubmitting(true);
       
-      // 1. 프로젝트 생성
-      const { data: projectData, error: projectError } = await supabase
-        .from('projects')
-        .insert({
-          name: newProjectName,
-          description: newProjectDesc,
-          created_by: userProfile?.id,
-          status: 'active'
-        })
-        .select()
-        .single();
+      if (editProjectId) {
+        // 수정
+        const { error } = await supabase
+          .from('projects')
+          .update({
+            name: projectName,
+            description: projectDesc,
+            status: projectStatus,
+          })
+          .eq('id', editProjectId);
 
-      if (projectError) throw projectError;
+        if (error) throw error;
+        toast.success('프로젝트가 수정되었습니다.');
+      } else {
+        // 신규 생성
+        const { data: projectData, error: projectError } = await supabase
+          .from('projects')
+          .insert({
+            name: projectName,
+            description: projectDesc,
+            created_by: userProfile?.id,
+            status: projectStatus
+          })
+          .select()
+          .single();
 
-      // 2. 기본 페이즈 6개 자동 생성 (설계~시운전)
-      const phasesToInsert = DEFAULT_PHASES.map((phaseName, index) => ({
-        project_id: projectData.id,
-        phase_name: phaseName,
-        display_order: index,
-        status: 'pending'
-      }));
+        if (projectError) throw projectError;
 
-      const { error: phaseError } = await supabase
-        .from('project_phases')
-        .insert(phasesToInsert);
+        // 기본 페이즈 자동 생성
+        const phasesToInsert = DEFAULT_PHASES.map((phaseName, index) => ({
+          project_id: projectData.id,
+          phase_name: phaseName,
+          display_order: index,
+          status: 'pending'
+        }));
 
-      if (phaseError) throw phaseError;
+        const { error: phaseError } = await supabase
+          .from('project_phases')
+          .insert(phasesToInsert);
 
-      toast.success('프로젝트가 성공적으로 생성되었습니다.');
+        if (phaseError) throw phaseError;
+        toast.success('프로젝트가 성공적으로 생성되었습니다.');
+      }
+
       setIsModalOpen(false);
-      setNewProjectName('');
-      setNewProjectDesc('');
       fetchProjects();
     } catch (error: any) {
-      console.error('Error creating project:', error);
-      toast.error(`프로젝트 생성 실패: ${error.message}`);
+      console.error('Error saving project:', error);
+      toast.error(`저장 실패: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -135,7 +184,7 @@ const ProjectManagement: React.FC = () => {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={openCreateModal}
             className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-sky-500/20"
           >
             <Plus className="w-5 h-5" />
@@ -163,17 +212,32 @@ const ProjectManagement: React.FC = () => {
                   <h2 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
                     <span>{project.name}</span>
                     <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
-                      project.status === 'active' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-600'
+                      project.status === 'active' ? 'bg-sky-100 text-sky-700' : 
+                      project.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-slate-200 text-slate-600'
                     }`}>
-                      {project.status === 'active' ? '진행 중' : project.status}
+                      {project.status === 'active' ? '진행 중' : project.status === 'completed' ? '완료' : '보류'}
                     </span>
                   </h2>
                   <p className="text-sm text-slate-500 mt-1">{project.description}</p>
                 </div>
                 {isAdmin && (
-                  <button className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => openEditModal(project)}
+                      className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm"
+                      title="수정"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteProject(project.id, project.name)}
+                      className="p-2 text-slate-400 hover:text-red-600 bg-white rounded-lg border border-slate-200 hover:border-red-300 transition shadow-sm"
+                      title="삭제"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
               
@@ -206,12 +270,14 @@ const ProjectManagement: React.FC = () => {
         )}
       </div>
 
-      {/* 프로젝트 생성 모달 */}
+      {/* 프로젝트 생성/수정 모달 */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800">새 프로젝트 추가</h2>
+              <h2 className="text-lg font-bold text-slate-800">
+                {editProjectId ? '프로젝트 수정' : '새 프로젝트 추가'}
+              </h2>
               <button 
                 onClick={() => setIsModalOpen(false)}
                 className="p-1 hover:bg-slate-200 rounded-lg transition text-slate-500"
@@ -221,33 +287,47 @@ const ProjectManagement: React.FC = () => {
             </div>
             
             <div className="p-6 overflow-y-auto">
-              <form id="createProjectForm" onSubmit={handleCreateProject} className="space-y-4">
+              <form id="projectForm" onSubmit={handleSaveProject} className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">프로젝트 명칭</label>
                   <input
                     type="text"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
                     placeholder="예: 2024 해상풍력 발전기 설치 TF"
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
                     required
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">상태</label>
+                  <select
+                    value={projectStatus}
+                    onChange={(e) => setProjectStatus(e.target.value as any)}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                  >
+                    <option value="active">진행 중</option>
+                    <option value="completed">완료</option>
+                    <option value="on_hold">보류</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">프로젝트 설명</label>
                   <textarea
-                    value={newProjectDesc}
-                    onChange={(e) => setNewProjectDesc(e.target.value)}
+                    value={projectDesc}
+                    onChange={(e) => setProjectDesc(e.target.value)}
                     placeholder="프로젝트의 주요 목표나 개요를 작성해주세요."
                     rows={3}
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition resize-none"
                   />
                 </div>
-                <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 mt-2">
-                  <p className="text-xs text-sky-800 font-medium">
-                    💡 프로젝트를 생성하면 설계, 구매, 제작, 검사, 설치, 시운전 등 6개의 기본 스케줄(Phase)이 자동으로 생성됩니다.
-                  </p>
-                </div>
+                {!editProjectId && (
+                  <div className="bg-sky-50 border border-sky-100 rounded-lg p-4 mt-2">
+                    <p className="text-xs text-sky-800 font-medium">
+                      💡 프로젝트를 생성하면 설계, 구매, 제작, 검사, 설치, 시운전 등 6개의 기본 스케줄(Phase)이 자동으로 생성됩니다.
+                    </p>
+                  </div>
+                )}
               </form>
             </div>
             
@@ -262,11 +342,11 @@ const ProjectManagement: React.FC = () => {
               </button>
               <button
                 type="submit"
-                form="createProjectForm"
+                form="projectForm"
                 disabled={isSubmitting}
                 className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition shadow-md shadow-sky-500/20 disabled:opacity-50"
               >
-                {isSubmitting ? '생성 중...' : '프로젝트 만들기'}
+                {isSubmitting ? '저장 중...' : (editProjectId ? '수정 완료' : '프로젝트 만들기')}
               </button>
             </div>
           </div>
