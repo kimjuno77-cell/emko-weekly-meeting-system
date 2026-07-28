@@ -9,6 +9,8 @@ import PendingTracker from './pages/PendingTracker';
 import WeeklyReport from './pages/WeeklyReport';
 import AdminPage from './pages/AdminPage';
 import Login from './pages/Login';
+import ProjectManagement from './pages/ProjectManagement';
+import MobilizationPlan from './pages/MobilizationPlan';
 import { useAuthStore } from './stores/authStore';
 import { useEffect } from 'react';
 
@@ -92,6 +94,12 @@ function App() {
           
           {/* 회원가입 승인 및 관리자 전용 사용자 관리 */}
           <Route path="/admin" element={<AdminPage />} />
+
+          {/* 프로젝트 현황 및 스케줄 관리 */}
+          <Route path="/projects" element={<ProjectManagement />} />
+
+          {/* 인력 투입(Mobilization) 계획 */}
+          <Route path="/mobilization" element={<MobilizationPlan />} />
           
           {/* 잘못된 경로는 대시보드로 리다이렉트 */}
           <Route path="*" element={<Navigate to="/" replace />} />

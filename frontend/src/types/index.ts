@@ -22,6 +22,12 @@ export type UserRole = 'admin' | 'team_leader' | 'member';
 // 주간 업데이트 상태
 export type WeeklyUpdateStatus = 'draft' | 'submitted' | 'reviewed';
 
+// 프로젝트 상태
+export type ProjectStatus = 'active' | 'completed' | 'on_hold';
+
+// 프로젝트 단계 상태
+export type ProjectPhaseStatus = 'pending' | 'in_progress' | 'delayed' | 'ahead' | 'completed';
+
 // ========================================
 // 데이터베이스 테이블 타입 정의
 // ========================================
@@ -35,6 +41,55 @@ export interface Team {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// 프로젝트
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// 프로젝트 마일스톤(단계)
+export interface ProjectPhase {
+  id: string;
+  project_id: string;
+  phase_name: string; // 설계, 구매, 제작, 검사, 설치, 시운전 등
+  planned_start_date: string | null;
+  planned_end_date: string | null;
+  actual_start_date: string | null;
+  actual_end_date: string | null;
+  status: ProjectPhaseStatus;
+  required_personnel: number;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+  
+  // 관계 데이터
+  project?: Project;
+}
+
+// 프로젝트 투입 계획 (Mobilization)
+export interface ProjectMobilization {
+  id: string;
+  project_id: string;
+  user_id: string;
+  phase_id: string | null;
+  role_description: string | null;
+  start_date: string;
+  end_date: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // 관계 데이터
+  project?: Project;
+  user?: UserProfile;
+  phase?: ProjectPhase;
 }
 
 // 사용자 프로필
@@ -56,7 +111,8 @@ export interface UserProfile {
 // 주간 업데이트
 export interface WeeklyUpdate {
   id: string;
-  team_id: string;
+  team_id: string | null;
+  project_id?: string | null;
   week_start_date: string; // ISO 날짜 문자열
   week_end_date: string;
   created_by: string | null;
@@ -68,6 +124,7 @@ export interface WeeklyUpdate {
   
   // 관계 데이터
   team?: Team;
+  project?: Project;
   creator?: UserProfile;
   last_updater?: UserProfile;
   tasks?: Task[];
@@ -77,6 +134,7 @@ export interface WeeklyUpdate {
 export interface Task {
   id: string;
   weekly_update_id: string;
+  project_id?: string | null;
   task_type: TaskType;
   title: string;
   description: string | null;

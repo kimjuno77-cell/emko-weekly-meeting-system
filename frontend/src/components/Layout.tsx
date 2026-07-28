@@ -11,7 +11,9 @@ import {
   Menu,
   X,
   ShieldCheck,
-  Calendar
+  Calendar,
+  Rocket,
+  Briefcase
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/lib/supabase';
@@ -54,6 +56,18 @@ const Layout = ({ children }: LayoutProps) => {
       href: '/',
       icon: LayoutDashboard,
       current: location.pathname === '/',
+    },
+    {
+      name: '프로젝트 관리',
+      href: '/projects',
+      icon: Rocket,
+      current: location.pathname.startsWith('/projects'),
+    },
+    {
+      name: '인력 투입(M-Plan)',
+      href: '/mobilization',
+      icon: Briefcase,
+      current: location.pathname.startsWith('/mobilization'),
     },
     {
       name: '팀 업데이트',
