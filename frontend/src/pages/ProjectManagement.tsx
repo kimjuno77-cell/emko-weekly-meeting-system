@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Project, ProjectPhase } from '../types';
+import { Project } from '../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
 
