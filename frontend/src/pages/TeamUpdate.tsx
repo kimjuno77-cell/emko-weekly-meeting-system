@@ -35,8 +35,10 @@ import {
 } from 'lucide-react';
 import { parseISO } from 'date-fns';
 import TaskFeedback from '@/components/TaskFeedback';
+import { useAuthStore } from '@/stores/authStore';
 
 const TeamUpdate = () => {
+  const { userProfile } = useAuthStore();
   const { teamId } = useParams<{ teamId: string }>();
   const [team, setTeam] = useState<Team | null>(null);
   const [weeklyUpdate, setWeeklyUpdate] = useState<WeeklyUpdate | null>(null);
