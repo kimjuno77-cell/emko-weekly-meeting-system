@@ -14,9 +14,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   // 설명: GitHub Pages 배포 시 서브 디렉토리 경로에서 정상 동작하도록 base 설정
-  // 로컬 개발(dev)에서는 '/', 프로덕션 빌드(build)에서는 리포지토리명 기반 경로 사용
   base: mode === 'production'
-    ? (process.env.VITE_BASE_PATH || '/')
+    ? '/emko-weekly-meeting-system/'
     : '/',
   server: {
     // 설명: 로컬 개발 서버 포트 (3000번)

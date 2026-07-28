@@ -1,6 +1,6 @@
 // 설명: 메인 애플리케이션 컴포넌트 및 라우팅 설정
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -35,12 +35,12 @@ function App() {
   // 설명: 로그인하지 않은 사용자는 로그인 페이지로 리다이렉트
   if (!user) {
     return (
-      <BrowserRouter>
+      <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     );
   }
 
@@ -75,7 +75,7 @@ function App() {
 
   // 설명: 로그인한 사용자에게 보여줄 메인 애플리케이션
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Layout>
         <Routes>
           {/* 대시보드 - 전체 팀 현황 */}
@@ -123,7 +123,7 @@ function App() {
           },
         }}
       />
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
