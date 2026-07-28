@@ -1,6 +1,6 @@
 // 설명: 팀별 주간 업데이트 작성 페이지 컴포넌트 (주차 선택, 지난주 미완료 항목 이관, 담당자 DB 선택, 2주간 비교)
 
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getTeamById } from '@/services/teamService';

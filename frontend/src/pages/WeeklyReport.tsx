@@ -66,7 +66,7 @@ const WeeklyReport = () => {
         .from('project_mobilizations')
         .select('*, project:projects(name), user:user_profiles!project_mobilizations_user_id_fkey(full_name), phase:project_phases(phase_name)');
       
-      if (mobData) setMobilizations(mobData as any[]);
+      if (mobData) setMobilizations(mobData as ProjectMobilization[]);
 
     } catch (error) {
       console.error('리포트 조회 실패:', error);
@@ -151,7 +151,7 @@ const WeeklyReport = () => {
 
       // 4. 프로젝트 M-Plan (Mobilizations)
       const mplanData = [['프로젝트명', '투입 단계(Phase)', '투입 인원', '역할 설명', '시작일', '종료일']];
-      mobilizations.forEach((mob: any) => {
+      mobilizations.forEach((mob) => {
         mplanData.push([
           mob.project?.name || '',
           mob.phase?.phase_name || '전체',
