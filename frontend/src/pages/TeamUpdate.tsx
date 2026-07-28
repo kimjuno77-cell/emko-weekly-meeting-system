@@ -559,7 +559,15 @@ const TeamUpdate = () => {
               <p className="text-xs text-slate-400 text-center py-8">등록된 주요 진행사항이 없습니다.</p>
             ) : (
               progressTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                <TaskCard 
+                  key={task.id} 
+                  task={task} 
+                  onEdit={openEditModal} 
+                  onDelete={handleDeleteTask}
+                  expandedTaskId={expandedTaskId}
+                  setExpandedTaskId={setExpandedTaskId}
+                  currentUserId={userProfile?.id || ''}
+                />
               ))
             )}
           </div>
@@ -586,7 +594,15 @@ const TeamUpdate = () => {
               <p className="text-xs text-slate-400 text-center py-8">특이 이슈 및 리스크가 없습니다. 👍</p>
             ) : (
               issueTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                <TaskCard 
+                  key={task.id} 
+                  task={task} 
+                  onEdit={openEditModal} 
+                  onDelete={handleDeleteTask}
+                  expandedTaskId={expandedTaskId}
+                  setExpandedTaskId={setExpandedTaskId}
+                  currentUserId={userProfile?.id || ''}
+                />
               ))
             )}
           </div>
@@ -613,7 +629,15 @@ const TeamUpdate = () => {
               <p className="text-xs text-slate-400 text-center py-8">등록된 차주 계획이 없습니다.</p>
             ) : (
               planTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onEdit={openEditModal} onDelete={handleDeleteTask} />
+                <TaskCard 
+                  key={task.id} 
+                  task={task} 
+                  onEdit={openEditModal} 
+                  onDelete={handleDeleteTask}
+                  expandedTaskId={expandedTaskId}
+                  setExpandedTaskId={setExpandedTaskId}
+                  currentUserId={userProfile?.id || ''}
+                />
               ))
             )}
           </div>
@@ -744,12 +768,20 @@ const TeamUpdate = () => {
 const TaskCard = ({
   task,
   onEdit,
-  onDelete
+  onDelete,
+  expandedTaskId,
+  setExpandedTaskId,
+  currentUserId
 }: {
   task: Task;
   onEdit: (t: Task) => void;
   onDelete: (id: string) => void;
+  expandedTaskId: string | null;
+  setExpandedTaskId: (id: string | null) => void;
+  currentUserId: string;
 }) => {
+  const isExpanded = expandedTaskId === task.id;
+
   return (
     <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-md transition space-y-2 group">
       <div className="flex items-start justify-between gap-2">
@@ -798,14 +830,30 @@ const TaskCard = ({
         <span className="text-[10px] font-extrabold text-slate-600">{task.progress_percentage}%</span>
       </div>
 
-      {/* 하단 담당자 정보 */}
+      {/* 하단 담당자 정보 및 액션 */}
       <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100/80">
         <span className="flex items-center gap-1 font-semibold text-slate-600">
           <User className="h-3 w-3 text-slate-400" />
           {task.assignee_name || task.assignee?.full_name || '담당자 미지정'}
         </span>
-        <span className="capitalize text-[10px] font-bold text-slate-500">{task.status}</span>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+            className={`flex items-center gap-1 font-bold transition ${isExpanded ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            피드백
+          </button>
+          <span className="capitalize text-[10px] font-bold text-slate-500">{task.status}</span>
+        </div>
       </div>
+
+      {/* 피드백 아코디언 */}
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <TaskFeedback taskId={task.id} currentUserId={currentUserId} />
+        </div>
+      )}
     </div>
   );
 };
