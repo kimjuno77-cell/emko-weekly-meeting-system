@@ -214,7 +214,7 @@ const Layout = ({ children }: LayoutProps) => {
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:inline-block">System</span>
               <span className="text-slate-300 hidden sm:inline-block">/</span>
               <h2 className="text-xs sm:text-sm font-extrabold text-slate-800">
-                8개 팀 주간 업데이트 취합 & Pending 추적 관리
+                주간 업데이트 취합 & Pending 추적 관리
               </h2>
             </div>
           </div>

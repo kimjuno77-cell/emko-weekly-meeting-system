@@ -687,7 +687,7 @@ const AdminPage = () => {
                   </div>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed mt-4">
-                  현재 데이터베이스에 저장된 8개 팀 정보, 사용자 프로필, 모든 주간 회의 보고서, 실적/계획 작업 및 Pending 추적 항목을 내 컴퓨터로 다운로드합니다.
+                  현재 데이터베이스에 저장된 팀 정보, 사용자 프로필, 모든 주간 회의 보고서, 실적/계획 작업 및 Pending 추적 항목을 내 컴퓨터로 다운로드합니다.
                 </p>
               </div>
 

@@ -96,7 +96,7 @@ const Login = () => {
             주간회의 취합 시스템
           </h1>
           <p className="mt-2 text-sm text-sky-200/70">
-            8개 팀의 주간 업데이트 취합 및 Pending 추적 관리
+            주간 업데이트 취합 및 Pending 추적 관리
           </p>
         </div>
 

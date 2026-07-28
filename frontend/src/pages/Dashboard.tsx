@@ -123,7 +123,7 @@ const Dashboard = () => {
               안녕하세요, {userProfile?.full_name || '사용자'}님! 👋
             </h1>
             <p className="mt-2 text-sm text-sky-200/80 max-w-xl">
-              {weekStartDate} ~ {weekEndDate} 회의 준비 현황입니다. 8개 팀의 주간 회의 업데이트가 순차적으로 수집되고 있습니다.
+              {weekStartDate} ~ {weekEndDate} 회의 준비 현황입니다. 주간 회의 업데이트가 순차적으로 수집되고 있습니다.
             </p>
             {userProfile?.team_id && (
               <div className="mt-4 inline-flex">
@@ -212,7 +212,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 8개 팀 제출 현황 그리드 */}
+      {/* 팀 제출 현황 그리드 */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
