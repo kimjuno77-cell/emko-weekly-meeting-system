@@ -305,27 +305,3 @@ export interface FilterOptions {
   date_to?: string;
 }
 
-// 피드백 관련 타입 추가
-export interface Attachment {
-  id: string;
-  file_name: string;
-  file_url: string;
-  file_size: number | null;
-  content_type: string | null;
-  entity_type: string;
-  entity_id: string;
-  uploaded_by: string | null;
-  created_at: string;
-  uploader?: UserProfile;
-}
-
-export interface Comment {
-  id: string;
-  content: string;
-  entity_type: string;
-  entity_id: string;
-  author_id: string | null;
-  created_at: string;
-  updated_at: string;
-  author?: UserProfile;
-}
