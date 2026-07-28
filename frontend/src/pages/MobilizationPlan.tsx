@@ -20,16 +20,16 @@ const MobilizationPlan: React.FC = () => {
         .select(`
           *,
           project:projects(name),
-          user:user_profiles(full_name, email),
+          user:user_profiles!project_mobilizations_user_id_fkey(full_name, email),
           phase:project_phases(phase_name)
         `)
         .order('start_date', { ascending: true });
 
       if (error) throw error;
       setPlans(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching mobilization plans:', error);
-      toast.error('인력 투입 계획을 불러오는데 실패했습니다.');
+      toast.error(`불러오기 실패: ${error.message}`);
     } finally {
       setLoading(false);
     }
