@@ -28,23 +28,37 @@ export const getWeeklyUpdatesByWeek = async (
   return data || [];
 };
 
-// 설명: 특정 팀의 특정 주차 업데이트 가져오기
+// 설명: 특정 팀/프로젝트의 특정 주차 업데이트 가져오기
 export const getWeeklyUpdateByTeamAndWeek = async (
-  teamId: string,
-  weekStartDate: string
+  teamId: string | null,
+  weekStartDate: string,
+  projectId: string | null = null
 ): Promise<WeeklyUpdate | null> => {
-  const { data, error } = await supabase
+  let query = supabase
     .from('weekly_updates')
     .select(`
       *,
       team:teams(*),
+      project:projects(*),
       creator:user_profiles!created_by(*),
       last_updater:user_profiles!last_updated_by(*),
       tasks(*)
     `)
-    .eq('team_id', teamId)
-    .eq('week_start_date', weekStartDate)
-    .single();
+    .eq('week_start_date', weekStartDate);
+
+  if (teamId) {
+    query = query.eq('team_id', teamId);
+  } else {
+    query = query.is('team_id', null);
+  }
+
+  if (projectId) {
+    query = query.eq('project_id', projectId);
+  } else {
+    query = query.is('project_id', null);
+  }
+
+  const { data, error } = await query.single();
   
   if (error) {
     if (error.code === 'PGRST116') {
@@ -82,13 +96,14 @@ export const getNextWeekDates = (currentWeekStartDate: string) => {
 
 // 설명: 지난주 미완료(CLOSE 되지 않은) 작업 목록 가져오기
 export const getUnclosedTasksFromPrevWeek = async (
-  teamId: string,
-  currentWeekStartDate: string
+  teamId: string | null,
+  currentWeekStartDate: string,
+  projectId: string | null = null
 ): Promise<Task[]> => {
   const { weekStartDate: prevWeekStartDate } = getPrevWeekDates(currentWeekStartDate);
 
   // 지난주 주간 보고서 조회
-  const prevUpdate = await getWeeklyUpdateByTeamAndWeek(teamId, prevWeekStartDate);
+  const prevUpdate = await getWeeklyUpdateByTeamAndWeek(teamId, prevWeekStartDate, projectId);
   if (!prevUpdate || !prevUpdate.tasks) return [];
 
   // 상태가 'completed'가 아니고 진행률이 100 미만인 항목 필터링
@@ -106,11 +121,12 @@ export const createWeeklyUpdate = async (
   const user = await supabase.auth.getUser();
   
   // 1. 이미 존재하는지 먼저 조회
-  const existing = await getWeeklyUpdateByTeamAndWeek(input.team_id, input.week_start_date);
+  const existing = await getWeeklyUpdateByTeamAndWeek(input.team_id || null, input.week_start_date, input.project_id || null);
   if (existing) return existing;
 
   const insertPayload: any = {
-    team_id: input.team_id,
+    team_id: input.team_id || null,
+    project_id: input.project_id || null,
     week_start_date: input.week_start_date,
     week_end_date: input.week_end_date,
     status: input.status || 'draft',
@@ -128,6 +144,7 @@ export const createWeeklyUpdate = async (
     .select(`
       *,
       team:teams(*),
+      project:projects(*),
       creator:user_profiles!created_by(*),
       last_updater:user_profiles!last_updated_by(*)
     `)
@@ -135,7 +152,7 @@ export const createWeeklyUpdate = async (
   
   if (error) {
     // 2. 오류 발생 시 다시 조회 시도
-    const reCheck = await getWeeklyUpdateByTeamAndWeek(input.team_id, input.week_start_date);
+    const reCheck = await getWeeklyUpdateByTeamAndWeek(input.team_id || null, input.week_start_date, input.project_id || null);
     if (reCheck) return reCheck;
 
     console.error('주간 업데이트 생성 실패:', error);

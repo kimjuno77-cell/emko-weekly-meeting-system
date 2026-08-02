@@ -89,8 +89,9 @@ const Dashboard = () => {
 
   // 차트 데이터 가공 (팀별 완료율 & 작업 수)
   const chartData = teams.map(team => {
-    const update = currentUpdates.find(u => u.team_id === team.id);
-    const tasks = update?.tasks || [];
+    // 팀의 모든 이번 주 업데이트들을 가져옴
+    const teamUpdates = currentUpdates.filter(u => u.team_id === team.id);
+    const tasks = teamUpdates.flatMap(u => u.tasks || []);
     const progressCount = tasks.filter(t => t.task_type === 'progress').length;
     const issueCount = tasks.filter(t => t.task_type === 'issue').length;
     const planCount = tasks.filter(t => t.task_type === 'plan').length;
@@ -128,7 +129,7 @@ const Dashboard = () => {
             {userProfile?.team_id && (
               <div className="mt-4 inline-flex">
                 <Link
-                  to={`/team/${userProfile.team_id}`}
+                  to={`/update?teamId=${userProfile.team_id}`}
                   className="inline-flex items-center px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                 >
                   우리 팀 업데이트 작성하기 <ArrowRight className="h-3 w-3 ml-1.5" />
@@ -234,7 +235,11 @@ const Dashboard = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {teams.map((team) => {
-            const update = currentUpdates.find(u => u.team_id === team.id);
+            const teamUpdates = currentUpdates.filter(u => u.team_id === team.id);
+            const isAllSubmitted = teamUpdates.length > 0 && teamUpdates.every(u => u.status === 'submitted' || u.status === 'reviewed');
+            const hasDraft = teamUpdates.some(u => u.status === 'draft');
+            const tasksCount = teamUpdates.flatMap(u => u.tasks || []).length;
+
             let statusBadge = (
               <span className="inline-flex items-center px-2 py-1 bg-slate-100 text-slate-500 text-xs font-semibold rounded-md gap-1">
                 미작성
@@ -243,14 +248,14 @@ const Dashboard = () => {
             let borderStyle = "border-slate-100";
             let bgHover = "hover:border-slate-200 hover:shadow-sm";
 
-            if (update?.status === 'submitted' || update?.status === 'reviewed') {
+            if (isAllSubmitted) {
               statusBadge = (
                 <span className="inline-flex items-center px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md gap-1">
                   <CheckCircle2 className="h-3 w-3" /> 제출완료
                 </span>
               );
               borderStyle = "border-emerald-100 bg-emerald-50/10";
-            } else if (update?.status === 'draft') {
+            } else if (hasDraft) {
               statusBadge = (
                 <span className="inline-flex items-center px-2 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-md gap-1">
                   <Clock className="h-3 w-3 animate-pulse" /> 작성중
@@ -262,7 +267,7 @@ const Dashboard = () => {
             return (
               <Link
                 key={team.id}
-                to={`/team/${team.id}`}
+                to={`/update?teamId=${team.id}`}
                 className={`block p-5 border ${borderStyle} rounded-xl transition-all ${bgHover} cursor-pointer`}
               >
                 <div className="flex items-start justify-between">
@@ -273,7 +278,7 @@ const Dashboard = () => {
                   {statusBadge}
                 </div>
                 <div className="mt-4 flex items-center justify-between border-t border-dashed border-slate-100 pt-3 text-xs text-slate-500">
-                  <span>작업 {update?.tasks?.length || 0}건 등록</span>
+                  <span>보고서 {teamUpdates.length}건, 작업 {tasksCount}건</span>
                   <span className="text-sky-600 font-medium hover:underline inline-flex items-center gap-0.5">
                     자세히 보기 <ArrowRight className="h-3 w-3" />
                   </span>

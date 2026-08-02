@@ -1,9 +1,9 @@
 // 설명: 팀별 주간 업데이트 작성 페이지 컴포넌트 (주차 선택, 지난주 미완료 항목 이관, 담당자 DB 선택, 2주간 비교)
 
-import { Link, useParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { getTeamById } from '@/services/teamService';
+import { getAllTeams, getTeamById } from '@/services/teamService';
 import {
   getWeeklyUpdateByTeamAndWeek,
   createWeeklyUpdate,
@@ -14,7 +14,7 @@ import {
   changeWeeklyUpdateStatus
 } from '@/services/weeklyUpdateService';
 import { createTask, updateTask, deleteTask } from '@/services/taskService';
-import { Team, WeeklyUpdate, Task, TaskType, TaskStatus, PriorityLevel, UserProfile } from '@/types';
+import { Team, Project, WeeklyUpdate, Task, TaskType, TaskStatus, PriorityLevel, UserProfile } from '@/types';
 import toast from 'react-hot-toast';
 import {
   Plus,
@@ -39,8 +39,18 @@ import { useAuthStore } from '@/stores/authStore';
 
 const TeamUpdate = () => {
   const { userProfile } = useAuthStore();
-  const { teamId } = useParams<{ teamId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTeamId = searchParams.get('teamId');
+  const urlProjectId = searchParams.get('projectId');
+
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(urlTeamId || '');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(urlProjectId || '');
+
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
+  
   const [team, setTeam] = useState<Team | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [weeklyUpdate, setWeeklyUpdate] = useState<WeeklyUpdate | null>(null);
   const [prevWeeklyUpdate, setPrevWeeklyUpdate] = useState<WeeklyUpdate | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -74,29 +84,80 @@ const TeamUpdate = () => {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (teamId) {
-      fetchTeamAndWeeklyData(currentWeekStart);
+    fetchInitialData();
+  }, []);
+
+  useEffect(() => {
+    fetchWeeklyData(currentWeekStart, selectedTeamId, selectedProjectId);
+  }, [currentWeekStart, selectedTeamId, selectedProjectId]);
+
+  const handleEntityChange = (type: 'team' | 'project', id: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (id) {
+      newParams.set(type === 'team' ? 'teamId' : 'projectId', id);
+    } else {
+      newParams.delete(type === 'team' ? 'teamId' : 'projectId');
     }
-  }, [teamId, currentWeekStart]);
+    setSearchParams(newParams);
+    if (type === 'team') setSelectedTeamId(id);
+    if (type === 'project') setSelectedProjectId(id);
+  };
 
-  const fetchTeamAndWeeklyData = async (weekStart: string) => {
-    if (!teamId) return;
+  const fetchInitialData = async () => {
     try {
-      setLoading(true);
-      // 1. 팀 정보 가져오기
-      const teamData = await getTeamById(teamId);
-      setTeam(teamData);
+      const [teamsData, { data: projectsData }] = await Promise.all([
+        getAllTeams(),
+        supabase.from('projects').select('*').order('name', { ascending: true })
+      ]);
+      setAllTeams(teamsData);
+      setAllProjects(projectsData || []);
 
-      // 2. 전체 활성 팀원 목록 가져오기 (담당자 선택용 DB)
       const { data: memberData } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('is_active', true)
         .order('full_name', { ascending: true });
       if (memberData) setMembers(memberData);
+    } catch (error) {
+      console.error('기초 데이터 로드 실패:', error);
+      toast.error('기초 데이터를 불러오는데 실패했습니다.');
+    }
+  };
 
-      // 3. 선택한 주차의 주간 업데이트 가져오기
-      let updateData = await getWeeklyUpdateByTeamAndWeek(teamId, weekStart);
+  const fetchWeeklyData = async (weekStart: string, tId: string, pId: string) => {
+    if (!tId && !pId) {
+      setWeeklyUpdate(null);
+      setTasks([]);
+      setPrevWeeklyUpdate(null);
+      setUnclosedPrevTasks([]);
+      setTeam(null);
+      setProject(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const tIdNullSafe = tId || null;
+      const pIdNullSafe = pId || null;
+
+      if (tIdNullSafe) {
+        const teamData = await getTeamById(tIdNullSafe);
+        setTeam(teamData);
+      } else {
+        setTeam(null);
+      }
+
+      if (pIdNullSafe) {
+        const { data: projectData } = await supabase.from('projects').select('*').eq('id', pIdNullSafe).single();
+        setProject(projectData);
+      } else {
+        setProject(null);
+      }
+
+      // 선택한 주차의 주간 업데이트 가져오기
+      let updateData = await getWeeklyUpdateByTeamAndWeek(tIdNullSafe, weekStart, pIdNullSafe);
 
       // 이번주 계산
       const calculatedDates = getCurrentWeekDates(parseISO(weekStart));
@@ -105,7 +166,8 @@ const TeamUpdate = () => {
       // 만약 해당 주차 보고서가 없으면 자동 임시 생성
       if (!updateData) {
         updateData = await createWeeklyUpdate({
-          team_id: teamId,
+          team_id: tIdNullSafe,
+          project_id: pIdNullSafe,
           week_start_date: calculatedDates.weekStartDate,
           week_end_date: calculatedDates.weekEndDate,
           status: 'draft',
@@ -116,16 +178,16 @@ const TeamUpdate = () => {
       setWeeklyUpdate(updateData);
       setTasks(updateData.tasks || []);
 
-      // 4. 지난주 주간 보고서 & 지난주 미완료(UNCLOSED) 항목 가져오기
+      // 지난주 주간 보고서 & 지난주 미완료(UNCLOSED) 항목 가져오기
       const prevDates = getPrevWeekDates(weekStart);
-      const prevUpdateData = await getWeeklyUpdateByTeamAndWeek(teamId, prevDates.weekStartDate);
+      const prevUpdateData = await getWeeklyUpdateByTeamAndWeek(tIdNullSafe, prevDates.weekStartDate, pIdNullSafe);
       setPrevWeeklyUpdate(prevUpdateData);
 
-      const unclosed = await getUnclosedTasksFromPrevWeek(teamId, weekStart);
+      const unclosed = await getUnclosedTasksFromPrevWeek(tIdNullSafe, weekStart, pIdNullSafe);
       setUnclosedPrevTasks(unclosed);
     } catch (error) {
       console.error('데이터 로드 실패:', error);
-      toast.error('팀 정보를 불러오는데 실패했습니다.');
+      toast.error('주간 업데이트 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -174,7 +236,7 @@ const TeamUpdate = () => {
 
       if (importedCount > 0) {
         toast.success(`지난주 미완료 항목 ${importedCount}개가 이번주 실적으로 이관되었습니다!`);
-        fetchTeamAndWeeklyData(currentWeekStart);
+        fetchWeeklyData(currentWeekStart, selectedTeamId, selectedProjectId);
       } else {
         toast('모든 미완료 항목이 이미 이번주 목록에 존재합니다.', { icon: 'ℹ️' });
       }
@@ -264,7 +326,7 @@ const TeamUpdate = () => {
       }
 
       closeModal();
-      fetchTeamAndWeeklyData(currentWeekStart);
+      fetchWeeklyData(currentWeekStart, selectedTeamId, selectedProjectId);
     } catch (error) {
       console.error('작업 저장 실패:', error);
       toast.error('작업 저장에 실패했습니다.');
@@ -277,7 +339,7 @@ const TeamUpdate = () => {
     try {
       await deleteTask(taskId);
       toast.success('작업이 삭제되었습니다.');
-      fetchTeamAndWeeklyData(currentWeekStart);
+      fetchWeeklyData(currentWeekStart, selectedTeamId, selectedProjectId);
     } catch (error) {
       console.error('삭제 실패:', error);
       toast.error('작업 삭제에 실패했습니다.');
@@ -303,7 +365,7 @@ const TeamUpdate = () => {
   // 지난주 차주계획 항목
   const prevPlans = prevWeeklyUpdate?.tasks?.filter((t) => t.task_type === 'plan') || [];
 
-  if (loading && !team) {
+  if (loading && (!team && !project)) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
@@ -311,22 +373,11 @@ const TeamUpdate = () => {
     );
   }
 
-  if (!team) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-slate-500 font-medium">팀 정보를 찾을 수 없습니다.</p>
-        <Link to="/" className="mt-4 inline-block text-sky-600 font-bold hover:underline text-sm">
-          ← 대시보드로 돌아가기
-        </Link>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8 animate-fadeIn">
-      {/* 상단 빵부순 네비게이션 & 주차 선택 헤더 */}
+      {/* 상단 네비게이션 & 주차 선택 헤더 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
           <Link
             to="/"
             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
@@ -334,14 +385,31 @@ const TeamUpdate = () => {
           >
             <ChevronLeft className="h-5 w-5" />
           </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-md border border-sky-100">
-                {team.name}
-              </span>
-              <span className="text-xs text-slate-400 font-semibold">{team.description}</span>
-            </div>
-            <h1 className="text-xl font-extrabold text-slate-900 mt-1">주간 업무 작성 및 취합</h1>
+          
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <select
+              value={selectedTeamId}
+              onChange={(e) => handleEntityChange('team', e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50"
+            >
+              <option value="">팀 선택 없음</option>
+              {allTeams.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+
+            <span className="text-slate-300 font-bold hidden md:block">+</span>
+
+            <select
+              value={selectedProjectId}
+              onChange={(e) => handleEntityChange('project', e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50"
+            >
+              <option value="">프로젝트 선택 없음</option>
+              {allProjects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -382,8 +450,14 @@ const TeamUpdate = () => {
         </div>
       </div>
 
-      {/* 지난주 미완료(UNCLOSED) 항목 자동 불러오기 배너 */}
-      {unclosedPrevTasks.length > 0 && (
+      {(!selectedTeamId && !selectedProjectId) ? (
+        <div className="text-center py-16 bg-white rounded-3xl border border-slate-100 shadow-sm">
+          <p className="text-slate-500 font-medium">상단에서 팀 또는 프로젝트를 선택해주세요.</p>
+        </div>
+      ) : (
+        <>
+          {/* 지난주 미완료(UNCLOSED) 항목 자동 불러오기 배너 */}
+          {unclosedPrevTasks.length > 0 && (
         <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-amber-100/50 border border-amber-200/80 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-pulse-subtle">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-sm">
@@ -759,6 +833,9 @@ const TeamUpdate = () => {
             </form>
           </div>
         </div>
+      )}
+      
+      </>
       )}
     </div>
   );

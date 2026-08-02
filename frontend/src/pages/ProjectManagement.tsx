@@ -19,6 +19,16 @@ const ProjectManagement: React.FC = () => {
   const [projectDesc, setProjectDesc] = useState('');
   const [projectStatus, setProjectStatus] = useState<'active' | 'completed' | 'on_hold'>('active');
   
+  // Phase Edit State
+  const [isPhaseModalOpen, setIsPhaseModalOpen] = useState(false);
+  const [editingPhase, setEditingPhase] = useState<ProjectPhase | null>(null);
+  const [phasePlannedStart, setPhasePlannedStart] = useState('');
+  const [phasePlannedEnd, setPhasePlannedEnd] = useState('');
+  const [phaseActualStart, setPhaseActualStart] = useState('');
+  const [phaseActualEnd, setPhaseActualEnd] = useState('');
+  const [phaseStatus, setPhaseStatus] = useState<'pending'|'in_progress'|'delayed'|'ahead'|'completed'>('pending');
+  const [phasePersonnel, setPhasePersonnel] = useState(0);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isAdmin = userProfile?.role === 'admin';
@@ -72,6 +82,47 @@ const ProjectManagement: React.FC = () => {
     setProjectDesc(project.description || '');
     setProjectStatus(project.status as any);
     setIsModalOpen(true);
+  };
+
+  const openPhaseModal = (phase: ProjectPhase) => {
+    setEditingPhase(phase);
+    setPhasePlannedStart(phase.planned_start_date || '');
+    setPhasePlannedEnd(phase.planned_end_date || '');
+    setPhaseActualStart(phase.actual_start_date || '');
+    setPhaseActualEnd(phase.actual_end_date || '');
+    setPhaseStatus(phase.status as any);
+    setPhasePersonnel(phase.required_personnel || 0);
+    setIsPhaseModalOpen(true);
+  };
+
+  const handleSavePhase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPhase) return;
+
+    try {
+      setIsSubmitting(true);
+      const { error } = await supabase
+        .from('project_phases')
+        .update({
+          planned_start_date: phasePlannedStart || null,
+          planned_end_date: phasePlannedEnd || null,
+          actual_start_date: phaseActualStart || null,
+          actual_end_date: phaseActualEnd || null,
+          status: phaseStatus,
+          required_personnel: phasePersonnel
+        })
+        .eq('id', editingPhase.id);
+
+      if (error) throw error;
+      toast.success('스케줄(Phase)이 업데이트되었습니다.');
+      setIsPhaseModalOpen(false);
+      fetchProjects();
+    } catch (error: any) {
+      console.error('Error saving phase:', error);
+      toast.error(`저장 실패: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteProject = async (id: string, name: string) => {
@@ -245,15 +296,30 @@ const ProjectManagement: React.FC = () => {
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Overall Schedule Phases</h4>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {project.phases.map(phase => (
-                    <div key={phase.id} className={`p-4 rounded-lg border ${getStatusColor(phase.status)}`}>
+                    <div key={phase.id} className={`p-4 rounded-lg border relative group ${getStatusColor(phase.status)}`}>
+                      {isAdmin && (
+                        <button
+                          onClick={() => openPhaseModal(phase)}
+                          className="absolute top-2 right-2 p-1.5 bg-white rounded-md shadow-sm opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-sky-600 border border-slate-200 hover:border-sky-300"
+                          title="스케줄 수정"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <div className="flex justify-between items-start mb-2">
                         <span className="font-bold">{phase.phase_name}</span>
                       </div>
                       <div className="space-y-1 mt-3">
                         <div className="flex items-center text-[11px] opacity-80">
                           <Calendar className="w-3 h-3 mr-1" />
-                          예상: {phase.planned_end_date ? phase.planned_end_date : '미정'}
+                          예상: {phase.planned_start_date ? `${phase.planned_start_date} ~ ` : ''}{phase.planned_end_date ? phase.planned_end_date : '미정'}
                         </div>
+                        {(phase.actual_start_date || phase.actual_end_date) && (
+                          <div className="flex items-center text-[10px] opacity-70">
+                            <Calendar className="w-3 h-3 mr-1" />
+                            실제: {phase.actual_start_date ? `${phase.actual_start_date} ~ ` : ''}{phase.actual_end_date ? phase.actual_end_date : '진행중'}
+                          </div>
+                        )}
                         <div className="text-xs font-medium mt-1">
                           상태: {getStatusText(phase.status)}
                         </div>
@@ -347,6 +413,117 @@ const ProjectManagement: React.FC = () => {
                 className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition shadow-md shadow-sky-500/20 disabled:opacity-50"
               >
                 {isSubmitting ? '저장 중...' : (editProjectId ? '수정 완료' : '프로젝트 만들기')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 수정 모달 */}
+      {isPhaseModalOpen && editingPhase && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800">
+                {editingPhase.phase_name} 스케줄 편집
+              </h2>
+              <button 
+                onClick={() => setIsPhaseModalOpen(false)}
+                className="p-1 hover:bg-slate-200 rounded-lg transition text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              <form id="phaseForm" onSubmit={handleSavePhase} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">예정 시작일</label>
+                    <input
+                      type="date"
+                      value={phasePlannedStart}
+                      onChange={(e) => setPhasePlannedStart(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">예정 종료일</label>
+                    <input
+                      type="date"
+                      value={phasePlannedEnd}
+                      onChange={(e) => setPhasePlannedEnd(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">실제 시작일</label>
+                    <input
+                      type="date"
+                      value={phaseActualStart}
+                      onChange={(e) => setPhaseActualStart(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">실제 종료일</label>
+                    <input
+                      type="date"
+                      value={phaseActualEnd}
+                      onChange={(e) => setPhaseActualEnd(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">상태</label>
+                    <select
+                      value={phaseStatus}
+                      onChange={(e) => setPhaseStatus(e.target.value as any)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    >
+                      <option value="pending">대기 중</option>
+                      <option value="in_progress">진행 중</option>
+                      <option value="ahead">조기 달성</option>
+                      <option value="delayed">지연됨</option>
+                      <option value="completed">완료</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">필요/투입 인원수</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={phasePersonnel}
+                      onChange={(e) => setPhasePersonnel(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+                    />
+                  </div>
+                </div>
+              </form>
+            </div>
+            
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setIsPhaseModalOpen(false)}
+                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition text-sm"
+                disabled={isSubmitting}
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                form="phaseForm"
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition shadow-md shadow-sky-500/20 disabled:opacity-50 text-sm"
+              >
+                {isSubmitting ? '저장 중...' : '스케줄 저장'}
               </button>
             </div>
           </div>

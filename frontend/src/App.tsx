@@ -83,8 +83,8 @@ function App() {
           {/* 대시보드 - 전체 팀 현황 */}
           <Route path="/" element={<Dashboard />} />
           
-          {/* 팀별 업데이트 작성 */}
-          <Route path="/team/:teamId" element={<TeamUpdate />} />
+          {/* 팀/프로젝트별 업데이트 작성 */}
+          <Route path="/update" element={<TeamUpdate />} />
           
           {/* Pending 추적 관리 */}
           <Route path="/pending" element={<PendingTracker />} />
