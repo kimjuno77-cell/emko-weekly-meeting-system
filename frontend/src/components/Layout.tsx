@@ -18,6 +18,8 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
+import GuideModal from './GuideModal';
+import { BookOpen } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -28,6 +30,7 @@ const Layout = ({ children }: LayoutProps) => {
   const { userProfile, signOut } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   useEffect(() => {
     if (userProfile?.role === 'admin') {
@@ -234,6 +237,14 @@ const Layout = ({ children }: LayoutProps) => {
           </div>
 
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsGuideOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl border border-sky-200/60 text-xs font-bold transition shadow-sm"
+              title="시스템 작성 가이드 보기"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline-block">작성 가이드</span>
+            </button>
             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100/80 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-600">
               <Calendar className="h-3.5 w-3.5 text-sky-500" />
               <span>{todayText}</span>
@@ -246,6 +257,12 @@ const Layout = ({ children }: LayoutProps) => {
           {children}
         </main>
       </div>
+
+      {/* 작성 가이드 모달 */}
+      <GuideModal 
+        isOpen={isGuideOpen} 
+        onClose={() => setIsGuideOpen(false)} 
+      />
     </div>
   );
 };
