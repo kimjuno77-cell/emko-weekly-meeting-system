@@ -179,6 +179,28 @@ const TeamUpdate = () => {
             const newParams = new URLSearchParams(searchParams);
             newParams.set('projectId', matchedProject.id);
             setSearchParams(newParams);
+          } else if (!safeInitialProjectId) {
+            // 이름이 일치하는 프로젝트가 없어도, 해당 팀이 최근 작성한 프로젝트가 있다면 자동 선택 (공통업무팀 편의성)
+            const { data: recentUpdate } = await supabase
+              .from('weekly_updates')
+              .select('project_id')
+              .eq('team_id', team.id)
+              .not('project_id', 'is', null)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (recentUpdate && recentUpdate.project_id) {
+              const recentProj = projectsData?.find(p => p.id === recentUpdate.project_id);
+              if (recentProj) {
+                setSelectedProjectId(recentProj.id);
+                setProjectSearchText(recentProj.name);
+                
+                const newParams = new URLSearchParams(searchParams);
+                newParams.set('projectId', recentProj.id);
+                setSearchParams(newParams);
+              }
+            }
           } else if (safeInitialProjectId) {
             const found = projectsData?.find(p => p.id === safeInitialProjectId);
             if (found) setProjectSearchText(found.name);
@@ -526,8 +548,16 @@ const TeamUpdate = () => {
                     list="project-list"
                     value={projectSearchText}
                     onChange={(e) => {
-                      setProjectSearchText(e.target.value);
-                      if (e.target.value === '') handleEntityChange('project', '');
+                      const val = e.target.value;
+                      setProjectSearchText(val);
+                      if (val === '') {
+                        handleEntityChange('project', '');
+                      } else {
+                        const existing = allProjects.find(p => p.name === val);
+                        if (existing) {
+                          handleEntityChange('project', existing.id);
+                        }
+                      }
                     }}
                     onKeyDown={(e) => e.key === 'Enter' && handleProjectSearchSubmit()}
                     placeholder="프로젝트 직접 입력"
