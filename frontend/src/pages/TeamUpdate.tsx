@@ -86,6 +86,7 @@ const TeamUpdate = () => {
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
   const [taskPriority, setTaskPriority] = useState<PriorityLevel>('medium');
   const [isPendingTrack, setIsPendingTrack] = useState(false);
+  const [isInitialDataLoaded, setIsInitialDataLoaded] = useState(false);
 
   // 작업별 피드백 아코디언 상태
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -95,8 +96,10 @@ const TeamUpdate = () => {
   }, []);
 
   useEffect(() => {
-    fetchWeeklyData(currentWeekStart, selectedTeamId, selectedProjectId);
-  }, [currentWeekStart, selectedTeamId, selectedProjectId]);
+    if (isInitialDataLoaded) {
+      fetchWeeklyData(currentWeekStart, selectedTeamId, selectedProjectId);
+    }
+  }, [currentWeekStart, selectedTeamId, selectedProjectId, isInitialDataLoaded]);
 
   const handleEntityChange = (type: 'team' | 'project', id: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -162,7 +165,26 @@ const TeamUpdate = () => {
       setAllTeams(teamsData);
       setAllProjects(projectsData || []);
       
-      if (safeInitialProjectId) {
+      // 초기 URL 로드 시 자동 매핑 로직 추가
+      if (safeInitialTeamId) {
+        const team = teamsData.find(t => t.id === safeInitialTeamId);
+        if (team) {
+          const matchedProject = projectsData?.find(p => p.name === team.name);
+          // URL에 projectId가 명시되어 있지 않은 경우에만 자동 매핑
+          if (matchedProject && !safeInitialProjectId) {
+            setSelectedProjectId(matchedProject.id);
+            setProjectSearchText(matchedProject.name);
+            
+            // URL 파라미터도 업데이트
+            const newParams = new URLSearchParams(searchParams);
+            newParams.set('projectId', matchedProject.id);
+            setSearchParams(newParams);
+          } else if (safeInitialProjectId) {
+            const found = projectsData?.find(p => p.id === safeInitialProjectId);
+            if (found) setProjectSearchText(found.name);
+          }
+        }
+      } else if (safeInitialProjectId) {
         const found = projectsData?.find(p => p.id === safeInitialProjectId);
         if (found) setProjectSearchText(found.name);
       }
@@ -176,6 +198,8 @@ const TeamUpdate = () => {
     } catch (error) {
       console.error('기초 데이터 로드 실패:', error);
       toast.error('기초 데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setIsInitialDataLoaded(true);
     }
   };
 
