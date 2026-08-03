@@ -11,6 +11,7 @@ import AdminPage from './pages/AdminPage';
 import Login from './pages/Login';
 import ProjectManagement from './pages/ProjectManagement';
 import MobilizationPlan from './pages/MobilizationPlan';
+import WorkloadDashboard from './pages/WorkloadDashboard';
 import { useAuthStore } from './stores/authStore';
 import { useEffect } from 'react';
 
@@ -100,6 +101,9 @@ function App() {
 
           {/* 인력 투입(Mobilization) 계획 */}
           <Route path="/mobilization" element={<MobilizationPlan />} />
+
+          {/* 팀 및 인력 워크로드 관리 */}
+          <Route path="/workload" element={<WorkloadDashboard />} />
           
           {/* 잘못된 경로는 대시보드로 리다이렉트 */}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -128,7 +128,7 @@ export interface UserProfile {
   id: string;
   email: string;
   full_name: string | null;
-  team_id: string | null;
+  team_id: string | null; // Primary Team
   role: UserRole;
   avatar_url: string | null;
   is_active: boolean;
@@ -137,6 +137,43 @@ export interface UserProfile {
   
   // 관계 데이터
   team?: Team;
+}
+
+// 팀 다중 소속 멤버
+export interface TeamMember {
+  id: string;
+  team_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+  
+  // 관계 데이터
+  team?: Team;
+  user?: UserProfile;
+}
+
+// 프로젝트 다중 소속 멤버
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+  
+  // 관계 데이터
+  project?: Project;
+  user?: UserProfile;
+}
+
+// 워크로드 현황 (사용자별 소속 개수)
+export interface UserWorkload {
+  user_id: string;
+  full_name: string;
+  email: string;
+  primary_team_name: string | null;
+  assigned_teams: Team[];
+  assigned_projects: Project[];
+  total_workload_count: number;
 }
 
 // 주간 업데이트

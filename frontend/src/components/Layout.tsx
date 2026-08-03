@@ -61,6 +61,12 @@ const Layout = ({ children }: LayoutProps) => {
       current: location.pathname === '/',
     },
     {
+      name: '팀/인력 관리',
+      href: '/workload',
+      icon: Users,
+      current: location.pathname.startsWith('/workload'),
+    },
+    {
       name: '프로젝트 관리',
       href: '/projects',
       icon: Rocket,
