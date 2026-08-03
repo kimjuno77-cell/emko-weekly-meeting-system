@@ -13,6 +13,7 @@ export const getWeeklyUpdatesByWeek = async (
     .select(`
       *,
       team:teams(*),
+      project:projects(*),
       creator:user_profiles!created_by(*),
       last_updater:user_profiles!last_updated_by(*),
       tasks(*)

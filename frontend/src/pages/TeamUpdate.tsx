@@ -14,6 +14,7 @@ import {
   changeWeeklyUpdateStatus
 } from '@/services/weeklyUpdateService';
 import { createTask, updateTask, deleteTask } from '@/services/taskService';
+import { createPendingItem } from '@/services/pendingService';
 import { Team, Project, WeeklyUpdate, Task, TaskType, TaskStatus, PriorityLevel, UserProfile } from '@/types';
 import toast from 'react-hot-toast';
 import {
@@ -31,6 +32,7 @@ import {
   ArrowRightLeft,
   Sparkles,
   MessageSquare,
+  Info,
   Clock
 } from 'lucide-react';
 import { parseISO } from 'date-fns';
@@ -43,8 +45,12 @@ const TeamUpdate = () => {
   const urlTeamId = searchParams.get('teamId');
   const urlProjectId = searchParams.get('projectId');
 
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(urlTeamId || '');
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(urlProjectId || '');
+  const safeInitialTeamId = (urlTeamId && urlTeamId !== 'undefined' && urlTeamId !== 'null') ? urlTeamId : '';
+  const safeInitialProjectId = (urlProjectId && urlProjectId !== 'undefined' && urlProjectId !== 'null') ? urlProjectId : '';
+
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(safeInitialTeamId);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(safeInitialProjectId);
+  const [projectSearchText, setProjectSearchText] = useState<string>('');
 
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -79,6 +85,7 @@ const TeamUpdate = () => {
   const [taskAssigneeName, setTaskAssigneeName] = useState('');
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
   const [taskPriority, setTaskPriority] = useState<PriorityLevel>('medium');
+  const [isPendingTrack, setIsPendingTrack] = useState(false);
 
   // 작업별 피드백 아코디언 상태
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -98,9 +105,52 @@ const TeamUpdate = () => {
     } else {
       newParams.delete(type === 'team' ? 'teamId' : 'projectId');
     }
+
+    // 프로젝트 전담팀 자동 매핑 로직
+    if (type === 'team' && id) {
+      const team = allTeams.find(t => t.id === id);
+      if (team) {
+        const matchedProject = allProjects.find(p => p.name === team.name);
+        if (matchedProject) {
+          newParams.set('projectId', matchedProject.id);
+          setSelectedProjectId(matchedProject.id);
+          setProjectSearchText(matchedProject.name);
+        }
+      }
+    }
+
     setSearchParams(newParams);
     if (type === 'team') setSelectedTeamId(id);
     if (type === 'project') setSelectedProjectId(id);
+  };
+
+  const handleProjectSearchSubmit = async () => {
+    const name = projectSearchText.trim();
+    if (!name) {
+      handleEntityChange('project', '');
+      return;
+    }
+    const existing = allProjects.find(p => p.name === name);
+    if (existing) {
+      handleEntityChange('project', existing.id);
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from('projects')
+          .insert({ name, status: 'active' })
+          .select()
+          .single();
+        if (error) throw error;
+        if (data) {
+          setAllProjects(prev => [...prev, data]);
+          handleEntityChange('project', data.id);
+          toast.success(`'${name}' 프로젝트가 새로 생성되었습니다.`);
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('새 프로젝트 생성에 실패했습니다.');
+      }
+    }
   };
 
   const fetchInitialData = async () => {
@@ -111,6 +161,11 @@ const TeamUpdate = () => {
       ]);
       setAllTeams(teamsData);
       setAllProjects(projectsData || []);
+      
+      if (safeInitialProjectId) {
+        const found = projectsData?.find(p => p.id === safeInitialProjectId);
+        if (found) setProjectSearchText(found.name);
+      }
 
       const { data: memberData } = await supabase
         .from('user_profiles')
@@ -257,6 +312,7 @@ const TeamUpdate = () => {
     setTaskAssigneeName('');
     setTaskStatus(type === 'issue' ? 'blocked' : 'pending');
     setTaskPriority('medium');
+    setIsPendingTrack(type === 'issue');
     setIsModalOpen(true);
   };
 
@@ -271,6 +327,7 @@ const TeamUpdate = () => {
     setTaskAssigneeName(task.assignee_name || '');
     setTaskStatus(task.status);
     setTaskPriority(task.priority);
+    setIsPendingTrack(false);
     setIsModalOpen(true);
   };
 
@@ -310,7 +367,7 @@ const TeamUpdate = () => {
         toast.success('작업이 수정되었습니다.');
       } else {
         // 등록
-        await createTask({
+        const newTask = await createTask({
           weekly_update_id: weeklyUpdate.id,
           task_type: modalType,
           title: taskTitle.trim(),
@@ -322,7 +379,28 @@ const TeamUpdate = () => {
           priority: taskPriority,
           display_order: tasks.length + 1,
         });
-        toast.success('새 작업이 추가되었습니다.');
+        
+        if (isPendingTrack && newTask && selectedTeamId) {
+          try {
+            await createPendingItem({
+              team_id: selectedTeamId,
+              title: taskTitle.trim(),
+              description: taskDesc.trim(),
+              assigned_to: taskAssigneeId || undefined,
+              assignee_name: finalAssigneeName,
+              status: 'pending',
+              priority: taskPriority,
+              related_task_id: newTask.id,
+              notes: '주간 업무 회의록에서 자동 연동됨'
+            });
+            toast.success('새 작업과 함께 Pending 현안이 등록되었습니다.');
+          } catch(err) {
+            console.error('Pending 연동 실패:', err);
+            toast.error('작업은 등록되었으나 Pending 연동에 실패했습니다.');
+          }
+        } else {
+          toast.success('새 작업이 추가되었습니다.');
+        }
       }
 
       closeModal();
@@ -373,8 +451,24 @@ const TeamUpdate = () => {
     );
   }
 
+  // 프로젝트 전담 팀 여부 판단
+  const selectedTeamData = allTeams.find(t => t.id === selectedTeamId);
+  const isProjectTeam = selectedTeamData ? allProjects.some(p => p.name === selectedTeamData.name) : false;
+
   return (
     <div className="space-y-8 animate-fadeIn">
+      {/* 주간업무 작성 가이드 */}
+      <div className="bg-sky-50/50 border border-sky-100 p-4 rounded-2xl flex gap-3 items-start shadow-sm">
+        <Info className="h-5 w-5 text-sky-600 mt-0.5 shrink-0" />
+        <div className="text-sm text-sky-900 space-y-1 leading-relaxed">
+          <p className="font-bold">📝 주간업무 작성 가이드</p>
+          <ul className="list-disc list-inside text-sky-800 space-y-0.5 opacity-90 pl-1">
+            <li><strong>프로젝트 전담 팀:</strong> 팀 선택만 하시면 프로젝트가 자동 매핑되어 별도로 프로젝트를 선택하실 필요가 없습니다.</li>
+            <li><strong>공통업무 팀 (예: 기술품질팀 등):</strong> 팀을 선택하신 후, 우측의 <strong>[프로젝트 직접 입력]</strong> 란에서 담당하시는 특정 프로젝트를 선택하여 업무를 분리 작성해 주세요.</li>
+          </ul>
+        </div>
+      </div>
+
       {/* 상단 네비게이션 & 주차 선택 헤더 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -398,18 +492,41 @@ const TeamUpdate = () => {
               ))}
             </select>
 
-            <span className="text-slate-300 font-bold hidden md:block">+</span>
+            {!isProjectTeam ? (
+              <>
+                <span className="text-slate-300 font-bold hidden md:block">+</span>
 
-            <select
-              value={selectedProjectId}
-              onChange={(e) => handleEntityChange('project', e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50"
-            >
-              <option value="">프로젝트 선택 없음</option>
-              {allProjects.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    list="project-list"
+                    value={projectSearchText}
+                    onChange={(e) => {
+                      setProjectSearchText(e.target.value);
+                      if (e.target.value === '') handleEntityChange('project', '');
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleProjectSearchSubmit()}
+                    placeholder="프로젝트 직접 입력"
+                    className="px-3 py-2 border border-slate-200 rounded-l-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 w-full min-w-[200px]"
+                  />
+                  <button
+                    onClick={handleProjectSearchSubmit}
+                    className="px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-r-xl transition flex items-center text-sm font-bold"
+                  >
+                    적용
+                  </button>
+                  <datalist id="project-list">
+                    {allProjects.map(p => (
+                      <option key={p.id} value={p.name} />
+                    ))}
+                  </datalist>
+                </div>
+              </>
+            ) : (
+              <div className="px-3 py-2 bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-inner">
+                <Sparkles className="w-4 h-4" /> 프로젝트 자동 매핑됨
+              </div>
+            )}
           </div>
         </div>
 
@@ -609,6 +726,33 @@ const TeamUpdate = () => {
           </div>
         </div>
       )}
+
+      {/* 작성 가이드 (HRSG SCR 패키지 설계업체 예시) */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6 shadow-sm">
+        <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 mb-3">
+          <Info className="h-4 w-4 text-sky-500" /> 주간 회의 보고서 작성 가이드
+        </h3>
+        <div className="text-xs text-slate-600 space-y-2">
+          <p><strong>작성 원칙:</strong> 업무는 핵심 위주로 명확하게 작성하며, 구체적인 진행률(%)과 담당자를 반드시 명시해 주세요.</p>
+          <div className="bg-white p-4 rounded-xl border border-slate-100 space-y-3 mt-3">
+            <p className="font-bold text-slate-700">💡 [예시] HRSG SCR 패키지 설계업체 (프로젝트 TF팀)</p>
+            <ul className="list-disc list-inside space-y-2 pl-1 text-slate-600">
+              <li>
+                <span className="font-semibold text-sky-600">[금주 주요 실적]</span> 
+                {' '}SCR Reactor 기본 설계(Basic Engineering) 도면 초안 작성 (진행률 80%) / 촉매(Catalyst) 공급업체 1차 미팅 완료
+              </li>
+              <li>
+                <span className="font-semibold text-rose-500">[주요 이슈/장해]</span> 
+                {' '}배압(Back pressure) 증가로 인한 유동 해석(CFD) 재검토 필요. (승인 일정 1주 지연 리스크)
+              </li>
+              <li>
+                <span className="font-semibold text-emerald-600">[차주 예정 계획]</span> 
+                {' '}유동 해석 최적화 모델 도출 및 발주처 승인(Approval)용 도면 최종 제출
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
 
       {/* 3개 주간 작업 영역 (1. 금주 주요 실적 / 2. 이슈 및 지원사항 / 3. 차주 예정 계획) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -814,6 +958,22 @@ const TeamUpdate = () => {
                   </select>
                 </div>
               </div>
+
+              {!editingTask && (
+                <div className="flex items-center gap-2 mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                  <input
+                    type="checkbox"
+                    id="isPendingTrack"
+                    checked={isPendingTrack}
+                    onChange={(e) => setIsPendingTrack(e.target.checked)}
+                    className="w-4 h-4 text-amber-500 rounded border-amber-300 focus:ring-amber-500"
+                    disabled={!selectedTeamId}
+                  />
+                  <label htmlFor="isPendingTrack" className="text-xs font-bold text-amber-900 cursor-pointer">
+                    이슈를 'Pending 추적' 대시보드에 자동으로 연동하기 (팀 선택 필요)
+                  </label>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-3 border-t border-slate-100">
                 <button

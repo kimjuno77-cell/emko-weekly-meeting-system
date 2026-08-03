@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 import {
   Users,
   AlertCircle,
@@ -33,6 +34,7 @@ import {
 const Dashboard = () => {
   const { userProfile } = useAuthStore();
   const [teams, setTeams] = useState<Team[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [currentUpdates, setCurrentUpdates] = useState<WeeklyUpdate[]>([]);
   const [pendingStats, setPendingStats] = useState({
     total: 0,
@@ -51,16 +53,18 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      const [teamsData, statsData, highPriorityData, updatesData] = await Promise.all([
+      const [teamsData, statsData, highPriorityData, { data: projectsData }, updatesData] = await Promise.all([
         getAllTeams(),
         getPendingStats(),
         getHighPriorityPendingItems(),
+        supabase.from('projects').select('*').order('name', { ascending: true }),
         getWeeklyUpdatesByWeek(weekStartDate),
       ]);
       
       setTeams(teamsData);
       setPendingStats(statsData);
       setHighPriorityItems(highPriorityData);
+      setProjects(projectsData || []);
       setCurrentUpdates(updatesData);
     } catch (error) {
       console.error('대시보드 데이터 로드 실패:', error);
@@ -126,16 +130,14 @@ const Dashboard = () => {
             <p className="mt-2 text-sm text-sky-200/80 max-w-xl">
               {weekStartDate} ~ {weekEndDate} 회의 준비 현황입니다. 주간 회의 업데이트가 순차적으로 수집되고 있습니다.
             </p>
-            {userProfile?.team_id && (
-              <div className="mt-4 inline-flex">
-                <Link
-                  to={`/update?teamId=${userProfile.team_id}`}
-                  className="inline-flex items-center px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  우리 팀 업데이트 작성하기 <ArrowRight className="h-3 w-3 ml-1.5" />
-                </Link>
-              </div>
-            )}
+            {userProfile?.team_id ? (
+              <Link
+                to="/update"
+                className="mt-4 sm:mt-4 inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center justify-center"
+              >
+                주간업무 작성하기 <ArrowRight className="h-3 w-3 ml-1.5" />
+              </Link>
+            ) : null}
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -287,6 +289,61 @@ const Dashboard = () => {
             );
           })}
         </div>
+
+        {/* 프로젝트 전용 (팀 없는) 업데이트 섹션 */}
+        {currentUpdates.filter(u => !u.team_id && u.project_id).length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-4">
+              <h2 className="text-lg font-bold text-slate-800">프로젝트 공통 보고 현황</h2>
+              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-semibold">
+                팀 미지정
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {currentUpdates
+                .filter(u => !u.team_id && u.project_id)
+                .map((update) => {
+                  const proj = projects.find(p => p.id === update.project_id);
+                  const isSubmitted = update.status === 'submitted' || update.status === 'reviewed';
+                  const tasksCount = update.tasks?.length || 0;
+
+                  let statusBadge = isSubmitted ? (
+                    <span className="inline-flex items-center px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-md gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> 제출완료
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-md gap-1">
+                      <Clock className="h-3 w-3 animate-pulse" /> 작성중
+                    </span>
+                  );
+                  let borderStyle = isSubmitted ? "border-emerald-100 bg-emerald-50/10" : "border-amber-100 bg-amber-50/10";
+                  let bgHover = "hover:border-slate-200 hover:shadow-sm";
+
+                  return (
+                    <Link
+                      key={update.id}
+                      to={`/update?projectId=${update.project_id}`}
+                      className={`block p-5 border ${borderStyle} rounded-xl transition-all ${bgHover} cursor-pointer`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-base">{proj?.name || '알 수 없는 프로젝트'}</h3>
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-1">팀 미지정 프로젝트 보고</p>
+                        </div>
+                        {statusBadge}
+                      </div>
+                      <div className="mt-4 flex items-center justify-between border-t border-dashed border-slate-100 pt-3 text-xs text-slate-500">
+                        <span>작업 {tasksCount}건</span>
+                        <span className="text-sky-600 font-medium hover:underline inline-flex items-center gap-0.5">
+                          자세히 보기 <ArrowRight className="h-3 w-3" />
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 비주얼 통계 & 높은 우선순위 Pending */}
@@ -294,8 +351,8 @@ const Dashboard = () => {
         {/* 차트 영역 */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 lg:col-span-8 space-y-6">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">팀별 주간 작업 등록 수치</h2>
-            <p className="text-xs text-slate-500 mt-1">각 팀의 주간 진행사항, 이슈사항, 다음주 계획 등록 현황입니다.</p>
+            <h2 className="text-lg font-bold text-slate-900">팀 / TF팀별 주간 작업 등록 현황</h2>
+            <p className="text-xs text-slate-500 mt-1">이번 주 실적(Progress) 및 이슈(Issue) 건수</p>
           </div>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">

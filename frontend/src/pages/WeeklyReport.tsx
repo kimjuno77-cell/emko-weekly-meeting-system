@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { getWeeklyUpdatesByWeek } from '@/services/weeklyUpdateService';
+import { getWeeklyUpdatesByWeek, getPrevWeekDates } from '@/services/weeklyUpdateService';
 import { getAllTeams } from '@/services/teamService';
 import { Team, WeeklyUpdate, PendingItem, ProjectMobilization } from '@/types';
 import { startOfWeek, endOfWeek, format, addWeeks, subWeeks } from 'date-fns';
@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Calendar,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowRightLeft
 } from 'lucide-react';
 
 // Third-party packages for export
@@ -23,6 +24,8 @@ import * as XLSX from 'xlsx';
 const WeeklyReport = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [weeklyUpdates, setWeeklyUpdates] = useState<WeeklyUpdate[]>([]);
+  const [prevWeeklyUpdates, setPrevWeeklyUpdates] = useState<WeeklyUpdate[]>([]);
+  const [showComparisonMode, setShowComparisonMode] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
   const [highPriorityPending, setHighPriorityPending] = useState<PendingItem[]>([]);
   
@@ -48,6 +51,10 @@ const WeeklyReport = () => {
       
       const updates = await getWeeklyUpdatesByWeek(weekStartDateStr);
       setWeeklyUpdates(updates);
+
+      const prevWeekStartStr = getPrevWeekDates(weekStartDateStr).weekStartDate;
+      const prevUpdates = await getWeeklyUpdatesByWeek(prevWeekStartStr);
+      setPrevWeeklyUpdates(prevUpdates);
 
       const teamsList = await getAllTeams();
       setTeams(teamsList);
@@ -206,6 +213,17 @@ const WeeklyReport = () => {
 
         <div className="flex gap-2">
           <button
+            onClick={() => setShowComparisonMode(!showComparisonMode)}
+            className={`inline-flex items-center px-4 py-2 text-sm font-bold rounded-xl border transition gap-2 shadow-sm ${
+              showComparisonMode 
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-600/20' 
+                : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+            }`}
+          >
+            <ArrowRightLeft className="h-4 w-4" /> 
+            {showComparisonMode ? '비교 모드 닫기' : '📊 2주간 비교 모드'}
+          </button>
+          <button
             onClick={downloadExcel}
             disabled={isExporting}
             className="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl gap-2 shadow transition active:scale-95 disabled:opacity-50"
@@ -343,30 +361,278 @@ const WeeklyReport = () => {
           </div>
 
           <div className="space-y-6 break-before-page">
-            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 border-l-4 border-slate-900 pl-2">Ⅳ. 팀별 주간업무 상세 사항</h2>
+            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 border-l-4 border-slate-900 pl-2">Ⅳ. 팀 / TF팀 주간업무 상세 사항</h2>
             <div className="space-y-8">
               {teams.map((team) => {
-                const update = weeklyUpdates.find((u) => u.team_id === team.id);
-                const teamTasks = update?.tasks || [];
+                const teamUpdates = weeklyUpdates.filter((u) => u.team_id === team.id);
+
+                if (teamUpdates.length === 0) {
+                  return (
+                    <div key={team.id} className="border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm hover:border-slate-300 transition break-inside-avoid">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-baseline gap-2">
+                          <h3 className="text-base font-black text-slate-900">{team.name}</h3>
+                          <span className="text-[11px] text-slate-500">{team.description || '주간 업무 회의 보고'}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-400 rounded">미제출</span>
+                      </div>
+                      <p className="text-xs text-slate-400 py-4 text-center">이번 주차에 등록된 업무 상세 사항이 없습니다.</p>
+                    </div>
+                  );
+                }
+
+                return teamUpdates.map((update) => {
+                  const teamTasks = update.tasks || [];
+                  const progressList = teamTasks.filter((t) => t.task_type === 'progress');
+                  const issueList = teamTasks.filter((t) => t.task_type === 'issue');
+                  const planList = teamTasks.filter((t) => t.task_type === 'plan');
+                  const titleSuffix = update.project ? ` - ${update.project.name}` : '';
+                  const prevUpdate = prevWeeklyUpdates.find((u) => u.team_id === team.id && u.project_id === update.project_id);
+                  const prevTasks = prevUpdate?.tasks || [];
+                  const prevPlanList = prevTasks.filter((t) => t.task_type === 'plan');
+
+                  return (
+                    <div key={update.id} className="border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm hover:border-slate-300 transition break-inside-avoid">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-baseline gap-2">
+                          <h3 className="text-base font-black text-slate-900">{team.name}{titleSuffix}</h3>
+                          <span className="text-[11px] text-slate-500">{team.description || '주간 업무 회의 보고'}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded">보고 제출완료</span>
+                      </div>
+                      {showComparisonMode ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100/50">
+                          {/* 상단 1행: 지난주 계획 vs 이번주 실적 */}
+                          <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-2">
+                              <Calendar className="h-4 w-4 text-slate-400" /> [지난주] 차주 계획 (Plan)
+                            </h4>
+                            {prevPlanList.length === 0 ? <p className="text-[11px] text-slate-400">지난주 계획이 없습니다.</p> : (
+                              <ul className="space-y-2.5">
+                                {prevPlanList.map((t) => (
+                                  <li key={t.id} className="text-[11px] text-slate-600 space-y-1">
+                                    <div className="flex items-start gap-1.5">
+                                      <span className="text-slate-300 mt-0.5">•</span>
+                                      <span className="font-bold text-slate-700">{t.title}</span>
+                                    </div>
+                                    {t.description && <p className="text-[10px] text-slate-500 pl-3 leading-relaxed">{t.description}</p>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+
+                          <div className="space-y-3 bg-white p-4 rounded-xl border border-sky-200 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-sky-50 rounded-bl-full -z-10"></div>
+                            <h4 className="text-xs font-bold text-sky-800 flex items-center gap-2 border-b border-sky-100 pb-2">
+                              <span className="px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded text-[10px]">결과</span> [이번주] 주요 진행 사항
+                            </h4>
+                            {progressList.length === 0 ? <p className="text-[11px] text-slate-400">진행 업무가 없습니다.</p> : (
+                              <ul className="space-y-2.5">
+                                {progressList.map((t) => (
+                                  <li key={t.id} className="text-[11px] text-slate-700 space-y-1">
+                                    <div className="flex items-start gap-1.5">
+                                      <span className="text-sky-400 mt-0.5">✓</span>
+                                      <span className="font-extrabold text-slate-800">{t.title}</span>
+                                      {t.progress_percentage > 0 && <span className="text-[10px] text-sky-600 font-bold bg-sky-50 px-1 rounded">({t.progress_percentage}%)</span>}
+                                    </div>
+                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-relaxed">{t.description}</p>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+
+                          {/* 하단 2행: 이번주 이슈 vs 새로운 차주 계획 */}
+                          <div className="space-y-3 bg-white p-4 rounded-xl border border-rose-100 shadow-sm">
+                            <h4 className="text-xs font-bold text-rose-800 flex items-center gap-2 border-b border-rose-50 pb-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> [이번주] 발생 이슈 및 지연
+                            </h4>
+                            {issueList.length === 0 ? <p className="text-[11px] text-slate-400">특이사항이 없습니다.</p> : (
+                              <ul className="space-y-2.5">
+                                {issueList.map((t) => (
+                                  <li key={t.id} className="text-[11px] text-slate-700 space-y-1">
+                                    <div className="flex items-start gap-1.5">
+                                      <span className="text-rose-400 mt-0.5">!</span>
+                                      <span className="font-bold text-slate-800">{t.title}</span>
+                                    </div>
+                                    {t.description && <p className="text-[10px] text-slate-500 pl-3 leading-relaxed">{t.description}</p>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+
+                          <div className="space-y-3 bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
+                            <h4 className="text-xs font-bold text-emerald-800 flex items-center gap-2 border-b border-emerald-50 pb-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> [새로운 계획] 차주(Next) 계획
+                            </h4>
+                            {planList.length === 0 ? <p className="text-[11px] text-slate-400">계획된 업무가 없습니다.</p> : (
+                              <ul className="space-y-2.5">
+                                {planList.map((t) => (
+                                  <li key={t.id} className="text-[11px] text-slate-700 space-y-1">
+                                    <div className="flex items-start gap-1.5">
+                                      <span className="text-emerald-400 mt-0.5">→</span>
+                                      <span className="font-bold text-slate-800">{t.title}</span>
+                                    </div>
+                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-relaxed">{t.description}</p>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-sky-700 bg-sky-50 px-2 py-1 rounded">✓ 주요 진행 사항</h4>
+                            {progressList.length === 0 ? <p className="text-[11px] text-slate-400 pl-2">진행 업무가 없습니다.</p> : (
+                              <ul className="space-y-2 pl-2">
+                                {progressList.map((t) => (
+                                  <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
+                                    <span className="font-bold text-slate-800">{t.title}</span>
+                                    {t.progress_percentage > 0 && <span className="ml-1 text-[10px] text-sky-600 font-semibold">({t.progress_percentage}%)</span>}
+                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded">✓ 주요 이슈 및 장해요인</h4>
+                            {issueList.length === 0 ? <p className="text-[11px] text-slate-400 pl-2">특이사항이 없습니다.</p> : (
+                              <ul className="space-y-2 pl-2">
+                                {issueList.map((t) => (
+                                  <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
+                                    <span className="font-bold text-slate-800">{t.title}</span>
+                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">✓ 차주 주요 업무 계획</h4>
+                            {planList.length === 0 ? <p className="text-[11px] text-slate-400 pl-2">계획 업무가 없습니다.</p> : (
+                              <ul className="space-y-2 pl-2">
+                                {planList.map((t) => (
+                                  <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
+                                    <span className="font-bold text-slate-800">{t.title}</span>
+                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })}
+
+              {/* 프로젝트 전용 업데이트 (팀 없는 경우) */}
+              {weeklyUpdates.filter(u => !u.team_id && u.project_id).map((update) => {
+                const teamTasks = update.tasks || [];
                 const progressList = teamTasks.filter((t) => t.task_type === 'progress');
                 const issueList = teamTasks.filter((t) => t.task_type === 'issue');
                 const planList = teamTasks.filter((t) => t.task_type === 'plan');
+                const title = update.project ? update.project.name : '알 수 없는 프로젝트';
+                const prevUpdate = prevWeeklyUpdates.find((u) => !u.team_id && u.project_id === update.project_id);
+                const prevTasks = prevUpdate?.tasks || [];
+                const prevPlanList = prevTasks.filter((t) => t.task_type === 'plan');
 
                 return (
-                  <div key={team.id} className="border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm hover:border-slate-300 transition break-inside-avoid">
+                  <div key={update.id} className="border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm hover:border-slate-300 transition break-inside-avoid">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <div className="flex items-baseline gap-2">
-                        <h3 className="text-base font-black text-slate-900">{team.name}</h3>
-                        <span className="text-[11px] text-slate-500">{team.description || '주간 업무 회의 보고'}</span>
+                        <h3 className="text-base font-black text-slate-900">{title}</h3>
+                        <span className="text-[11px] text-slate-500">프로젝트 공통 보고 (팀 미지정)</span>
                       </div>
-                      {update ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded">보고 제출완료</span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-400 rounded">미제출</span>
-                      )}
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded">보고 제출완료</span>
                     </div>
-                    {!update ? (
-                      <p className="text-xs text-slate-400 py-4 text-center">이번 주차에 등록된 업무 상세 사항이 없습니다.</p>
+                    {showComparisonMode ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100/50">
+                        {/* 상단 1행: 지난주 계획 vs 이번주 실적 */}
+                        <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                          <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-2">
+                            <Calendar className="h-4 w-4 text-slate-400" /> [지난주] 차주 계획 (Plan)
+                          </h4>
+                          {prevPlanList.length === 0 ? <p className="text-[11px] text-slate-400">지난주 계획이 없습니다.</p> : (
+                            <ul className="space-y-2.5">
+                              {prevPlanList.map((t) => (
+                                <li key={t.id} className="text-[11px] text-slate-600 space-y-1">
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="text-slate-300 mt-0.5">•</span>
+                                    <span className="font-bold text-slate-700">{t.title}</span>
+                                  </div>
+                                  {t.description && <p className="text-[10px] text-slate-500 pl-3 leading-relaxed">{t.description}</p>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        <div className="space-y-3 bg-white p-4 rounded-xl border border-sky-200 shadow-sm relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-16 h-16 bg-sky-50 rounded-bl-full -z-10"></div>
+                          <h4 className="text-xs font-bold text-sky-800 flex items-center gap-2 border-b border-sky-100 pb-2">
+                            <span className="px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded text-[10px]">결과</span> [이번주] 주요 진행 사항
+                          </h4>
+                          {progressList.length === 0 ? <p className="text-[11px] text-slate-400">진행 업무가 없습니다.</p> : (
+                            <ul className="space-y-2.5">
+                              {progressList.map((t) => (
+                                <li key={t.id} className="text-[11px] text-slate-700 space-y-1">
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="text-sky-400 mt-0.5">✓</span>
+                                    <span className="font-extrabold text-slate-800">{t.title}</span>
+                                    {t.progress_percentage > 0 && <span className="text-[10px] text-sky-600 font-bold bg-sky-50 px-1 rounded">({t.progress_percentage}%)</span>}
+                                  </div>
+                                  {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-relaxed">{t.description}</p>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        {/* 하단 2행: 이번주 이슈 vs 새로운 차주 계획 */}
+                        <div className="space-y-3 bg-white p-4 rounded-xl border border-rose-100 shadow-sm">
+                          <h4 className="text-xs font-bold text-rose-800 flex items-center gap-2 border-b border-rose-50 pb-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> [이번주] 발생 이슈 및 지연
+                          </h4>
+                          {issueList.length === 0 ? <p className="text-[11px] text-slate-400">특이사항이 없습니다.</p> : (
+                            <ul className="space-y-2.5">
+                              {issueList.map((t) => (
+                                <li key={t.id} className="text-[11px] text-slate-700 space-y-1">
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="text-rose-400 mt-0.5">!</span>
+                                    <span className="font-bold text-slate-800">{t.title}</span>
+                                  </div>
+                                  {t.description && <p className="text-[10px] text-slate-500 pl-3 leading-relaxed">{t.description}</p>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        <div className="space-y-3 bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
+                          <h4 className="text-xs font-bold text-emerald-800 flex items-center gap-2 border-b border-emerald-50 pb-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> [새로운 계획] 차주(Next) 계획
+                          </h4>
+                          {planList.length === 0 ? <p className="text-[11px] text-slate-400">계획된 업무가 없습니다.</p> : (
+                            <ul className="space-y-2.5">
+                              {planList.map((t) => (
+                                <li key={t.id} className="text-[11px] text-slate-700 space-y-1">
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="text-emerald-400 mt-0.5">→</span>
+                                    <span className="font-bold text-slate-800">{t.title}</span>
+                                  </div>
+                                  {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-relaxed">{t.description}</p>}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
@@ -388,7 +654,7 @@ const WeeklyReport = () => {
                           {issueList.length === 0 ? <p className="text-[11px] text-slate-400 pl-2">특이사항이 없습니다.</p> : (
                             <ul className="space-y-2 pl-2">
                               {issueList.map((t) => (
-                                <li key={t.id} className="text-xs text-rose-700 list-disc list-inside space-y-0.5">
+                                <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
                                   <span className="font-bold text-slate-800">{t.title}</span>
                                   {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
                                 </li>
@@ -397,8 +663,8 @@ const WeeklyReport = () => {
                           )}
                         </div>
                         <div className="space-y-2">
-                          <h4 className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">✓ 차주 업무 계획</h4>
-                          {planList.length === 0 ? <p className="text-[11px] text-slate-400 pl-2">다음 주 계획이 없습니다.</p> : (
+                          <h4 className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">✓ 차주 주요 업무 계획</h4>
+                          {planList.length === 0 ? <p className="text-[11px] text-slate-400 pl-2">계획 업무가 없습니다.</p> : (
                             <ul className="space-y-2 pl-2">
                               {planList.map((t) => (
                                 <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">

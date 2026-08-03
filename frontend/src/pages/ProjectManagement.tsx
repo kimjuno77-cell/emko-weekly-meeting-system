@@ -191,6 +191,17 @@ const ProjectManagement: React.FC = () => {
           .insert(phasesToInsert);
 
         if (phaseError) throw phaseError;
+        
+        // 추가 요구사항: 프로젝트 생성 시, 프로젝트 이름으로 팀 자동 생성
+        try {
+          await supabase.from('teams').insert({
+            name: projectName,
+            description: '프로젝트 전담 팀 (자동 생성)'
+          });
+        } catch (teamErr) {
+          console.warn('팀 자동 생성 중 오류 발생 (이미 존재하는 이름일 수 있습니다):', teamErr);
+        }
+
         toast.success('프로젝트가 성공적으로 생성되었습니다.');
       }
 

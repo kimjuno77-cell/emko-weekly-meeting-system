@@ -222,7 +222,8 @@ export interface PendingItem {
 
 // 주간 업데이트 생성/수정 입력
 export interface WeeklyUpdateInput {
-  team_id: string;
+  team_id?: string | null;
+  project_id?: string | null;
   week_start_date: string;
   week_end_date: string;
   status?: WeeklyUpdateStatus;

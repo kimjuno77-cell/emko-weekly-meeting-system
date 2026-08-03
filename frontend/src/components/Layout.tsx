@@ -70,10 +70,10 @@ const Layout = ({ children }: LayoutProps) => {
       current: location.pathname.startsWith('/mobilization'),
     },
     {
-      name: '팀 업데이트',
-      href: userProfile?.team_id ? `/team/${userProfile.team_id}` : '/',
+      name: '주간업무 작성',
+      href: '/update',
       icon: Users,
-      current: location.pathname.startsWith('/team'),
+      current: location.pathname.startsWith('/update'),
     },
     {
       name: 'Pending 추적',

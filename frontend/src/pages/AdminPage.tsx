@@ -402,7 +402,7 @@ const AdminPage = () => {
             }`}
           >
             <Building2 className="h-3.5 w-3.5 text-indigo-500" />
-            팀(부서) 관리 ({teams.length}개)
+            팀 / TF팀 관리 ({teams.length}개)
           </button>
 
           <button
@@ -608,10 +608,10 @@ const AdminPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-indigo-500" /> 등록된 조직 팀 목록 ({teams.length}개)
+                <Building2 className="h-5 w-5 text-indigo-500" /> 등록된 조직 (팀 / TF팀) 목록 ({teams.length}개)
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                주간 회의 보고서 작성 및 회원 가입에 사용되는 팀 명칭과 표시 순서를 수정하거나 새로 추가합니다.
+                주간 회의 보고서 작성 및 회원 가입에 사용되는 팀/TF팀 명칭과 표시 순서를 수정하거나 새로 추가합니다.
               </p>
             </div>
           </div>
