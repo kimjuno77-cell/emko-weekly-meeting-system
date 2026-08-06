@@ -19,7 +19,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
 import GuideModal from './GuideModal';
-import { BookOpen } from 'lucide-react';
+import ChangePasswordModal from './ChangePasswordModal';
+import { BookOpen, KeyRound } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -31,6 +32,7 @@ const Layout = ({ children }: LayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   useEffect(() => {
     if (userProfile?.role === 'admin') {
@@ -209,11 +211,18 @@ const Layout = ({ children }: LayoutProps) => {
             })}
           </nav>
 
-          {/* 하단 로그아웃 버튼 */}
-          <div className="p-3 border-t border-slate-100 bg-white">
+          {/* 하단 버튼들 */}
+          <div className="p-3 border-t border-slate-100 bg-white space-y-1">
+            <button
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="flex items-center w-full px-3.5 py-2.5 text-xs font-semibold text-slate-600 hover:bg-sky-50 hover:text-sky-600 rounded-xl transition-colors gap-3 group"
+            >
+              <KeyRound className="h-4 w-4 text-slate-400 group-hover:text-sky-600" />
+              비밀번호 변경
+            </button>
             <button
               onClick={handleSignOut}
-              className="flex items-center w-full px-3.5 py-2.5 text-xs font-semibold text-slate-600 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors gap-3"
+              className="flex items-center w-full px-3.5 py-2.5 text-xs font-semibold text-slate-600 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors gap-3 group"
             >
               <LogOut className="h-4 w-4 text-slate-400 group-hover:text-rose-600" />
               로그아웃
@@ -268,6 +277,12 @@ const Layout = ({ children }: LayoutProps) => {
       <GuideModal 
         isOpen={isGuideOpen} 
         onClose={() => setIsGuideOpen(false)} 
+      />
+
+      {/* 비밀번호 변경 모달 */}
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
       />
     </div>
   );
