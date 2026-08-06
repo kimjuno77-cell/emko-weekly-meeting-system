@@ -16,6 +16,8 @@ interface AuthState {
   signUp: (email: string, password: string, fullName: string, teamId: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  resetPasswordForEmail: (email: string, redirectTo?: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
 }
 
 // 설명: 인증 상태 관리 스토어 생성
@@ -123,6 +125,30 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     
     set({ user: null, userProfile: null });
+  },
+  
+  // 설명: 비밀번호 재설정 이메일 발송
+  resetPasswordForEmail: async (email: string, redirectTo?: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectTo || `${window.location.origin}/`,
+    });
+    
+    if (error) {
+      console.error('비밀번호 재설정 요청 실패:', error);
+      throw new Error(error.message || '비밀번호 재설정 이메일 발송에 실패했습니다.');
+    }
+  },
+
+  // 설명: 새 비밀번호로 업데이트
+  updatePassword: async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      console.error('비밀번호 업데이트 실패:', error);
+      throw new Error(error.message || '비밀번호 변경에 실패했습니다.');
+    }
   },
   
   // 설명: 사용자 프로필 업데이트

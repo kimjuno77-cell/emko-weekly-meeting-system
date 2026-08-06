@@ -12,15 +12,44 @@ import Login from './pages/Login';
 import ProjectManagement from './pages/ProjectManagement';
 import MobilizationPlan from './pages/MobilizationPlan';
 import WorkloadDashboard from './pages/WorkloadDashboard';
+import ResetPassword from './pages/ResetPassword';
 import { useAuthStore } from './stores/authStore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+// 공통 토스트 설정
+const ToastContainer = () => (
+  <Toaster
+    position="top-right"
+    toastOptions={{
+      duration: 3000,
+      style: { background: '#363636', color: '#fff' },
+      success: { duration: 3000, iconTheme: { primary: '#10b981', secondary: '#fff' } },
+      error: { duration: 4000, iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+    }}
+  />
+);
 
 function App() {
   const { user, userProfile, loading, initialize } = useAuthStore();
+  const [isRecovery, setIsRecovery] = useState(false);
 
-  // 설명: 앱 초기화 시 인증 상태 확인
+  // 설명: 앱 초기화 시 인증 상태 확인 및 해시 파라미터 체크 (비밀번호 복구용)
   useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash;
+      if (hash && hash.includes('type=recovery')) {
+        setIsRecovery(true);
+      } else {
+        setIsRecovery(false);
+      }
+    };
+    
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    
     initialize();
+
+    return () => window.removeEventListener('hashchange', handleHash);
   }, [initialize]);
 
   // 설명: 로딩 중일 때 표시할 화면
@@ -35,15 +64,28 @@ function App() {
     );
   }
 
+  // 설명: 비밀번호 복구 화면
+  if (isRecovery) {
+    return (
+      <>
+        <ResetPassword />
+        <ToastContainer />
+      </>
+    );
+  }
+
   // 설명: 로그인하지 않은 사용자는 로그인 페이지로 리다이렉트
   if (!user) {
     return (
-      <HashRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </HashRouter>
+      <>
+        <HashRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </HashRouter>
+        <ToastContainer />
+      </>
     );
   }
 
@@ -72,6 +114,7 @@ function App() {
             로그아웃 후 다른 계정으로 로그인
           </button>
         </div>
+        <ToastContainer />
       </div>
     );
   }
@@ -105,36 +148,11 @@ function App() {
           {/* 팀 및 인력 워크로드 관리 */}
           <Route path="/workload" element={<WorkloadDashboard />} />
           
-          {/* 잘못된 경로는 대시보드로 리다이렉트 */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
       
-      {/* 설명: Toast 알림을 위한 컨테이너 */}
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#10b981',
-              secondary: '#fff',
-            },
-          },
-          error: {
-            duration: 4000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
-            },
-          },
-        }}
-      />
+      <ToastContainer />
     </HashRouter>
   );
 }

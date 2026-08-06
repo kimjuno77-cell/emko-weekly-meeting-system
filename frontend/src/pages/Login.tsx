@@ -5,11 +5,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { getAllTeams } from '@/services/teamService';
 import { Team } from '@/types';
 import toast from 'react-hot-toast';
-import { LogIn, UserPlus } from 'lucide-react';
+import { LogIn, UserPlus, Mail } from 'lucide-react';
 
 const Login = () => {
-  const { signIn, signUp } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+  const { signIn, signUp, resetPasswordForEmail } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<'login' | 'signup' | 'forgot-password'>('login');
   
   // 공통 상태
   const [email, setEmail] = useState('');
@@ -88,8 +88,10 @@ const Login = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-tr from-sky-500 to-indigo-500 rounded-2xl shadow-lg shadow-sky-500/20 mb-4 animate-bounce duration-3000">
             {activeTab === 'login' ? (
               <LogIn className="h-8 w-8 text-white" />
-            ) : (
+            ) : activeTab === 'signup' ? (
               <UserPlus className="h-8 w-8 text-white" />
+            ) : (
+              <Mail className="h-8 w-8 text-white" />
             )}
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight bg-clip-text bg-gradient-to-r from-sky-200 to-white">
@@ -165,6 +167,16 @@ const Login = () => {
                 />
               </div>
 
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab('forgot-password'); toast.dismiss(); }}
+                  className="text-xs font-semibold text-sky-400 hover:text-sky-300 transition"
+                >
+                  비밀번호를 잊으셨나요?
+                </button>
+              </div>
+
               <button
                 type="submit"
                 disabled={loading}
@@ -173,7 +185,7 @@ const Login = () => {
                 {loading ? '로그인 중...' : '로그인'}
               </button>
             </form>
-          ) : (
+          ) : activeTab === 'signup' ? (
             /* 회원가입 폼 */
             <form onSubmit={handleSignupSubmit} className="space-y-5">
               <div>
@@ -248,14 +260,67 @@ const Login = () => {
                 {loading ? '가입 신청 중...' : '회원가입 및 가입 승인 요청'}
               </button>
             </form>
+          ) : (
+            /* 비밀번호 재설정 폼 */
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!email) {
+                toast.error('이메일을 입력해주세요.');
+                return;
+              }
+              setLoading(true);
+              try {
+                // 해시 라우터를 사용중이므로 루트 URL을 리다이렉트 URL로 지정 (App.tsx에서 해시 처리)
+                await resetPasswordForEmail(email, window.location.origin + window.location.pathname);
+                toast.success('비밀번호 재설정 이메일이 발송되었습니다. 이메일을 확인해주세요.');
+                setActiveTab('login');
+              } catch (error: any) {
+                toast.error(error.message || '이메일 발송 실패');
+              } finally {
+                setLoading(false);
+              }
+            }} className="space-y-5">
+              <div>
+                <label htmlFor="reset-email" className="block text-xs font-semibold text-slate-300 mb-2">
+                  가입한 이메일 주소
+                </label>
+                <input
+                  id="reset-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-950/30 border border-white/10 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition"
+                  placeholder="your@email.com"
+                  disabled={loading}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 mt-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-sky-500/20 active:scale-[0.98] transition disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {loading ? '전송 중...' : '비밀번호 재설정 링크 받기'}
+              </button>
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab('login'); toast.dismiss(); }}
+                  className="text-xs font-semibold text-slate-400 hover:text-white transition"
+                >
+                  로그인으로 돌아가기
+                </button>
+              </div>
+            </form>
           )}
 
           {/* 안내 문구 */}
           <div className="mt-6 pt-5 border-t border-white/10 text-center text-xs text-sky-200/50">
             {activeTab === 'login' ? (
               <p>처음이신가요? 회원가입 후 관리자에게 가입 승인을 요청하세요.</p>
-            ) : (
+            ) : activeTab === 'signup' ? (
               <p>회원가입 완료 시 가입 승인이 접수되며, 관리자 승인 후 즉시 사용 가능합니다.</p>
+            ) : (
+              <p>입력하신 이메일로 비밀번호를 재설정할 수 있는 보안 링크가 전송됩니다.</p>
             )}
           </div>
         </div>
