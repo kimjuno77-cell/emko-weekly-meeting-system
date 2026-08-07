@@ -11,6 +11,7 @@ const MobilizationPlan: React.FC = () => {
   const [plans, setPlans] = useState<ProjectMobilization[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [offlineUsers, setOfflineUsers] = useState<any[]>([]);
   const [phases, setPhases] = useState<ProjectPhase[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -58,6 +59,7 @@ const MobilizationPlan: React.FC = () => {
           *,
           project:projects(name),
           user:user_profiles!project_mobilizations_user_id_fkey(full_name, email),
+          offline_personnel:offline_personnel!project_mobilizations_offline_personnel_id_fkey(full_name),
           phase:project_phases(phase_name, actual_start_date, actual_end_date)
         `)
         .order('start_date', { ascending: true });
@@ -74,12 +76,14 @@ const MobilizationPlan: React.FC = () => {
 
   const fetchFormData = async () => {
     try {
-      const [projRes, userRes] = await Promise.all([
+      const [projRes, userRes, offlineRes] = await Promise.all([
         supabase.from('projects').select('*').eq('status', 'active'),
-        supabase.from('user_profiles').select('*').eq('is_active', true)
+        supabase.from('user_profiles').select('*').eq('is_active', true),
+        supabase.from('offline_personnel').select('*')
       ]);
       if (projRes.data) setProjects(projRes.data);
       if (userRes.data) setUsers(userRes.data);
+      if (offlineRes.data) setOfflineUsers(offlineRes.data);
     } catch (error) {
       console.error('Error fetching form data:', error);
     }
@@ -148,11 +152,16 @@ const MobilizationPlan: React.FC = () => {
       
       if (editPlanId) {
         // 단일 건 수정
+        // 선택된 ID가 user인지 offline_personnel인지 판별해야 하지만
+        // 여기서는 isUser 플래그를 찾거나 모든 목록에서 찾아봐야 함.
+        const isOffline = offlineUsers.some(u => u.id === selectedUserIds[0]);
+
         const { error } = await supabase
           .from('project_mobilizations')
           .update({
             project_id: selectedProjectId,
-            user_id: selectedUserIds[0], // 수정 시에는 1명으로 제한됨
+            user_id: isOffline ? null : selectedUserIds[0],
+            offline_personnel_id: isOffline ? selectedUserIds[0] : null,
             phase_id: selectedPhaseId || null,
             role_description: roleDesc,
             start_date: startDate,
@@ -164,15 +173,19 @@ const MobilizationPlan: React.FC = () => {
         toast.success('투입 계획이 수정되었습니다.');
       } else {
         // 복수 건 신규 생성
-        const plansToInsert = selectedUserIds.map(userId => ({
-          project_id: selectedProjectId,
-          user_id: userId,
-          phase_id: selectedPhaseId || null,
-          role_description: roleDesc,
-          start_date: startDate,
-          end_date: endDate,
-          created_by: userProfile?.id,
-        }));
+        const plansToInsert = selectedUserIds.map(userId => {
+          const isOffline = offlineUsers.some(u => u.id === userId);
+          return {
+            project_id: selectedProjectId,
+            user_id: isOffline ? null : userId,
+            offline_personnel_id: isOffline ? userId : null,
+            phase_id: selectedPhaseId || null,
+            role_description: roleDesc,
+            start_date: startDate,
+            end_date: endDate,
+            created_by: userProfile?.id,
+          };
+        });
 
         const { error } = await supabase
           .from('project_mobilizations')
@@ -206,14 +219,16 @@ const MobilizationPlan: React.FC = () => {
   const ganttItems: GanttItem[] = React.useMemo(() => {
     const userGroups = new Map<string, { user: any, tasks: any[] }>();
     plans.forEach(plan => {
-      if (!plan.user_id) return;
-      if (!userGroups.has(plan.user_id)) {
-        userGroups.set(plan.user_id, {
-          user: (plan as any).user,
+      const personId = plan.user_id || plan.offline_personnel_id;
+      if (!personId) return;
+
+      if (!userGroups.has(personId)) {
+        userGroups.set(personId, {
+          user: plan.user_id ? (plan as any).user : (plan as any).offline_personnel,
           tasks: []
         });
       }
-      userGroups.get(plan.user_id)!.tasks.push({
+      userGroups.get(personId)!.tasks.push({
         id: plan.id,
         name: ((plan as any).project?.name || '프로젝트') + ((plan as any).phase?.phase_name ? ` (${(plan as any).phase?.phase_name})` : ''),
         startDate: plan.start_date,
@@ -228,7 +243,7 @@ const MobilizationPlan: React.FC = () => {
     return Array.from(userGroups.values()).map(group => ({
       id: group.user?.email || Math.random().toString(),
       label: group.user?.full_name || '알 수 없는 사용자',
-      subLabel: group.user?.email,
+      subLabel: group.user?.email || '(미가입)',
       tasks: group.tasks
     }));
   }, [plans, isAdmin]);
@@ -316,11 +331,11 @@ const MobilizationPlan: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
-                          {(plan as any).user?.full_name?.[0] || 'U'}
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${plan.offline_personnel_id ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'}`}>
+                          {plan.user_id ? ((plan as any).user?.full_name?.[0] || 'U') : ((plan as any).offline_personnel?.full_name?.[0] || 'O')}
                         </div>
                         <span className="font-semibold text-slate-700">
-                          {(plan as any).user?.full_name || '알 수 없음'}
+                          {plan.user_id ? ((plan as any).user?.full_name || '알 수 없음') : ((plan as any).offline_personnel?.full_name || '알 수 없음')}
                         </span>
                       </div>
                     </td>
@@ -368,7 +383,7 @@ const MobilizationPlan: React.FC = () => {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button 
-                            onClick={() => handleDeletePlan(plan.id, (plan as any).user?.full_name || '알 수 없음')}
+                            onClick={() => handleDeletePlan(plan.id, plan.user_id ? ((plan as any).user?.full_name || '알 수 없음') : ((plan as any).offline_personnel?.full_name || '알 수 없음'))}
                             className="p-1.5 text-slate-400 hover:text-red-600 rounded bg-white border border-slate-200 hover:border-red-300 transition shadow-sm"
                             title="삭제"
                           >
@@ -462,29 +477,51 @@ const MobilizationPlan: React.FC = () => {
                       {users.map(u => (
                         <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
                       ))}
+                      {offlineUsers.map(u => (
+                        <option key={u.id} value={u.id}>{u.full_name} (미가입)</option>
+                      ))}
                     </select>
                   ) : (
                     <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
-                      {users.length === 0 ? (
+                      {users.length === 0 && offlineUsers.length === 0 ? (
                         <p className="text-sm text-slate-500 text-center py-2">선택 가능한 인원이 없습니다.</p>
                       ) : (
-                        users.map(u => (
-                          <label key={u.id} className="flex items-center space-x-3 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
-                            <input
-                              type="checkbox"
-                              checked={selectedUserIds.includes(u.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedUserIds(prev => [...prev, u.id]);
-                                } else {
-                                  setSelectedUserIds(prev => prev.filter(id => id !== u.id));
-                                }
-                              }}
-                              className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                            />
-                            <span className="text-sm text-slate-700">{u.full_name} <span className="text-slate-400 text-xs">({u.email})</span></span>
-                          </label>
-                        ))
+                        <>
+                          {users.map(u => (
+                            <label key={u.id} className="flex items-center space-x-3 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
+                              <input
+                                type="checkbox"
+                                checked={selectedUserIds.includes(u.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedUserIds(prev => [...prev, u.id]);
+                                  } else {
+                                    setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                                  }
+                                }}
+                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                              />
+                              <span className="text-sm text-slate-700">{u.full_name} <span className="text-slate-400 text-xs">({u.email})</span></span>
+                            </label>
+                          ))}
+                          {offlineUsers.map(u => (
+                            <label key={u.id} className="flex items-center space-x-3 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
+                              <input
+                                type="checkbox"
+                                checked={selectedUserIds.includes(u.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedUserIds(prev => [...prev, u.id]);
+                                  } else {
+                                    setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                                  }
+                                }}
+                                className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
+                              />
+                              <span className="text-sm text-slate-700">{u.full_name} <span className="text-amber-500 text-xs font-bold">(미가입)</span></span>
+                            </label>
+                          ))}
+                        </>
                       )}
                     </div>
                   )}
