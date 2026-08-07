@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/authStore';
 import { Plus, X, Calendar, Edit2, Trash2 } from 'lucide-react';
 
 import { personnelService } from '../services/personnelService';
+import { recommendPersonnel } from '../services/workloadService';
 
 const DEFAULT_PHASES = ['설계', '구매', '제작', '검사', '설치', '시운전'];
 
@@ -590,7 +591,30 @@ const ProjectManagement: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-sm font-semibold text-slate-700">투입 인원 (M-PLAN 연동)</label>
-                    <span className="text-xs text-sky-600 font-bold">{selectedPhaseUsers.length}명 선택됨</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!phasePlannedStart || !phasePlannedEnd) {
+                            toast.error('예정 시작일과 종료일을 먼저 입력해주세요.');
+                            return;
+                          }
+                          const allMobs = projects.flatMap(p => p.phases.flatMap(ph => ph.mobilizations || []));
+                          const offline = users.filter(u => u.isOffline);
+                          const regular = users.filter(u => !u.isOffline);
+                          const recommended = recommendPersonnel(phasePlannedStart, phasePlannedEnd, allMobs, regular, offline);
+                          if (recommended.length > 0) {
+                            const newUsers = [...new Set([...selectedPhaseUsers, ...recommended.map(r => r.id)])];
+                            setSelectedPhaseUsers(newUsers);
+                            toast.success('WORK LOAD 기반 가장 한가한 5명이 추가로 선택되었습니다.');
+                          }
+                        }}
+                        className="text-[10px] bg-sky-100 text-sky-700 px-2 py-1 rounded hover:bg-sky-200 font-bold transition"
+                      >
+                        추천 인원 추가 (Top 5)
+                      </button>
+                      <span className="text-xs text-sky-600 font-bold">{selectedPhaseUsers.length}명 선택됨</span>
+                    </div>
                   </div>
                   <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1.5">
                     {users.length === 0 ? (

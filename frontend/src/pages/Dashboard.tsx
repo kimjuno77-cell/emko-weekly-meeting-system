@@ -1,6 +1,4 @@
-// 설명: 대시보드 페이지 - 전체 팀 현황 한눈에 보기
-
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import {
@@ -9,7 +7,8 @@ import {
   Clock,
   TrendingUp,
   ArrowRight,
-  ClipboardList
+  ClipboardList,
+  Activity
 } from 'lucide-react';
 import { getAllTeams } from '@/services/teamService';
 import { getPendingStats, getHighPriorityPendingItems } from '@/services/pendingService';
@@ -17,13 +16,7 @@ import { getCurrentWeekDates, getWeeklyUpdatesByWeek } from '@/services/weeklyUp
 import { useAuthStore } from '@/stores/authStore';
 import { Team, PendingItem, WeeklyUpdate } from '@/types';
 import toast from 'react-hot-toast';
-import GanttChart, { GanttItem, ViewMode } from '@/components/GanttChart';
-import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+import { calculateWorkloadRanking, WorkloadRanking } from '@/services/workloadService';
 
 const Dashboard = () => {
   const { userProfile } = useAuthStore();
@@ -37,10 +30,8 @@ const Dashboard = () => {
   });
   const [highPriorityItems, setHighPriorityItems] = useState<PendingItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [projectPhases, setProjectPhases] = useState<any[]>([]);
   const [mobilizations, setMobilizations] = useState<any[]>([]);
-  const [ganttViewMode, setGanttViewMode] = useState<ViewMode>('month');
-  const [ganttDate, setGanttDate] = useState<Date>(new Date());
+  const [workloadRankings, setWorkloadRankings] = useState<WorkloadRanking[]>([]);
   
   const { weekStartDate, weekEndDate } = getCurrentWeekDates();
 
@@ -52,23 +43,31 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      const [teamsData, statsData, highPriorityData, projectsRes, phasesRes, mobRes, updatesData] = await Promise.all([
+      const [teamsData, statsData, highPriorityData, projectsRes, mobRes, updatesData, usersRes, offlineRes] = await Promise.all([
         getAllTeams(),
         getPendingStats(),
         getHighPriorityPendingItems(),
         supabase.from('projects').select('*').order('name', { ascending: true }),
-        supabase.from('project_phases').select('*').order('display_order', { ascending: true }),
         supabase.from('project_mobilizations').select('*, user:user_profiles!project_mobilizations_user_id_fkey(full_name), offline:offline_personnel!project_mobilizations_offline_personnel_id_fkey(full_name), project:projects(name)').order('start_date', { ascending: true }),
         getWeeklyUpdatesByWeek(weekStartDate),
+        supabase.from('user_profiles').select('*'),
+        supabase.from('offline_personnel').select('*')
       ]);
       
       setTeams(teamsData);
       setPendingStats(statsData);
       setHighPriorityItems(highPriorityData);
       setProjects(projectsRes.data || []);
-      setProjectPhases(phasesRes.data || []);
-      setMobilizations(mobRes.data || []);
+      
+      const mobs = mobRes.data || [];
+      setMobilizations(mobs);
       setCurrentUpdates(updatesData);
+
+      const users = usersRes.data || [];
+      const offline = offlineRes.data || [];
+      const rankings = calculateWorkloadRanking(mobs, users as any, offline);
+      setWorkloadRankings(rankings.slice(0, 5));
+
     } catch (error) {
       console.error('대시보드 데이터 로드 실패:', error);
       toast.error('데이터를 불러오는데 실패했습니다.');
@@ -77,328 +76,171 @@ const Dashboard = () => {
     }
   };
 
+  const submittedUpdates = currentUpdates.filter(u => u.status === 'submitted' || u.status === 'reviewed');
+  const submittedCount = submittedUpdates.length;
+
+  // Monthly Aggregation for M-Plan
+  const { monthHeaders, monthlyData } = useMemo(() => {
+    const today = new Date();
+    const headers: { label: string, year: number, month: number }[] = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+      headers.push({
+        label: `${d.getMonth() + 1}월`,
+        year: d.getFullYear(),
+        month: d.getMonth()
+      });
+    }
+
+    const dataMap = new Map<string, number[]>(); // projectId -> array of counts corresponding to headers
+
+    projects.forEach(p => {
+      if (p.status !== 'active') return;
+      dataMap.set(p.id, [0, 0, 0, 0, 0, 0]);
+    });
+
+    mobilizations.forEach(mob => {
+      const pId = mob.project_id;
+      if (!dataMap.has(pId)) return;
+      
+      const s = new Date(mob.start_date);
+      const e = new Date(mob.end_date);
+      
+      headers.forEach((h, index) => {
+        // check if mob overlaps with the month 'h'
+        const startOfMonth = new Date(h.year, h.month, 1);
+        const endOfMonth = new Date(h.year, h.month + 1, 0);
+        
+        if (s <= endOfMonth && e >= startOfMonth) {
+          const counts = dataMap.get(pId)!;
+          counts[index] += 1;
+        }
+      });
+    });
+
+    const rows = projects.filter(p => p.status === 'active').map(p => ({
+      projectName: p.name,
+      counts: dataMap.get(p.id)!
+    }));
+
+    // sort by total mobilizations in 6 months
+    rows.sort((a, b) => b.counts.reduce((sum, c) => sum + c, 0) - a.counts.reduce((sum, c) => sum + c, 0));
+
+    return { monthHeaders: headers, monthlyData: rows };
+  }, [projects, mobilizations]);
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex items-center justify-center h-screen bg-slate-900">
         <div className="relative">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-sky-500"></div>
-          <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-sky-500">로딩중</div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-sky-500"></div>
+          <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-sky-500">로딩</div>
         </div>
       </div>
     );
   }
 
-  // 제출 완료한 팀의 수 계산
-  const submittedUpdates = currentUpdates.filter(u => u.status === 'submitted' || u.status === 'reviewed');
-  const submittedCount = submittedUpdates.length;
-  const draftCount = currentUpdates.filter(u => u.status === 'draft').length;
-
-  // Pending 상태 분포 데이터 가공
-  const pendingDistributionData = [
-    { name: '진행 중', value: pendingStats.in_progress, color: '#0ea5e9' },
-    { name: '대기 중', value: Math.max(0, pendingStats.total - pendingStats.in_progress - pendingStats.high_priority), color: '#eab308' },
-    { name: '높은 우선순위', value: pendingStats.high_priority, color: '#ef4444' }
-  ].filter(d => d.value > 0);
-
-  // 간트차트 데이터 가공
-  const ganttItems: GanttItem[] = projects.map(proj => {
-    const phases = projectPhases.filter(p => p.project_id === proj.id);
-    return {
-      id: proj.id,
-      label: proj.name,
-      subLabel: proj.status === 'completed' ? '완료' : proj.status === 'on_hold' ? '보류' : '진행 중',
-      tasks: phases.filter(p => p.planned_start_date).map(p => {
-        let colorClass = 'bg-sky-500';
-        if (p.status === 'completed') colorClass = 'bg-emerald-500';
-        else if (p.status === 'delayed') colorClass = 'bg-red-500';
-        else if (p.status === 'ahead') colorClass = 'bg-blue-600';
-        
-        return {
-          id: p.id,
-          name: p.phase_name,
-          startDate: p.planned_start_date,
-          endDate: p.planned_end_date,
-          actualStartDate: p.actual_start_date || undefined,
-          actualEndDate: p.actual_end_date || undefined,
-          colorClass
-        };
-      })
-    };
-  }).filter(item => item.tasks.length > 0); // 시작일이 있는 페이즈가 하나라도 있는 프로젝트만 표시
-
   return (
-    <div className="space-y-8 animate-fadeIn">
-      {/* 웰컴 배너 */}
-      <div className="relative bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 rounded-2xl p-6 md:p-8 shadow-xl overflow-hidden border border-white/5">
-        <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute left-1/3 bottom-0 translate-y-12 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl"></div>
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="h-[calc(100vh-4rem)] bg-slate-950 text-slate-200 overflow-hidden flex flex-col font-sans -m-4 sm:-m-6 lg:-m-8 p-4">
+      
+      {/* HEADER ROW */}
+      <div className="flex justify-between items-center mb-4 shrink-0 px-2">
+        <div className="flex items-center space-x-3">
+          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <h1 className="text-xl font-bold text-white tracking-tight">주간 현황판 (Status Board)</h1>
+          <span className="text-xs text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full bg-slate-800/50">
+            {weekStartDate} ~ {weekEndDate}
+          </span>
+        </div>
+        {userProfile?.team_id && (
+          <Link
+            to="/update"
+            className="flex items-center px-3 py-1.5 bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-bold rounded-md transition shadow-lg shadow-indigo-900/50"
+          >
+            업데이트 작성 <ArrowRight className="h-3 w-3 ml-1" />
+          </Link>
+        )}
+      </div>
+
+      {/* STATS ROW */}
+      <div className="grid grid-cols-4 gap-4 mb-4 shrink-0">
+        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex justify-between items-center shadow-md">
           <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white">
-              안녕하세요, {userProfile?.full_name || '사용자'}님! 👋
-            </h1>
-            <p className="mt-2 text-sm text-sky-200/80 max-w-xl">
-              {weekStartDate} ~ {weekEndDate} 회의 준비 현황입니다. 주간 회의 업데이트가 순차적으로 수집되고 있습니다.
-            </p>
-            {userProfile?.team_id ? (
-              <Link
-                to="/update"
-                className="mt-4 sm:mt-4 inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center justify-center"
-              >
-                주간업무 작성하기 <ArrowRight className="h-3 w-3 ml-1.5" />
-              </Link>
-            ) : null}
+            <p className="text-[10px] font-bold text-slate-500 uppercase">전체 팀 제출율</p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <span className="text-2xl font-black text-white">{submittedCount}</span>
+              <span className="text-xs text-slate-500">/ {teams.length}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              to="/report"
-              className="px-5 py-3 bg-white/10 hover:bg-white/20 text-white border border-white/10 text-sm font-semibold rounded-xl transition-all shadow-md active:scale-95"
-            >
-              주간회의 리포트 요약 📄
-            </Link>
+          <Users className="h-8 w-8 text-sky-500/50" />
+        </div>
+        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex justify-between items-center shadow-md">
+          <div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">미해결 Pending</p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <span className="text-2xl font-black text-amber-500">{pendingStats.total}</span>
+            </div>
           </div>
+          <ClipboardList className="h-8 w-8 text-amber-500/50" />
+        </div>
+        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex justify-between items-center shadow-md">
+          <div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">진행 중 (In Progress)</p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <span className="text-2xl font-black text-emerald-500">{pendingStats.in_progress}</span>
+            </div>
+          </div>
+          <TrendingUp className="h-8 w-8 text-emerald-500/50" />
+        </div>
+        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex justify-between items-center shadow-md">
+          <div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">긴급 조치 (High)</p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <span className="text-2xl font-black text-rose-500">{pendingStats.high_priority}</span>
+            </div>
+          </div>
+          <AlertCircle className="h-8 w-8 text-rose-500/50" />
         </div>
       </div>
 
-      {/* 통계 카드 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">전체 소속 팀</p>
-              <p className="text-3xl font-bold text-slate-900 mt-2">{teams.length}개 팀</p>
-            </div>
-            <div className="p-3 bg-sky-50 rounded-xl">
-              <Users className="h-6 w-6 text-sky-600" />
-            </div>
-          </div>
-          <div className="mt-4 text-xs text-slate-500 flex items-center gap-1">
-            <span className="font-semibold text-emerald-500">{submittedCount}개 팀 제출 완료</span>
-            <span>/ {draftCount}개 작성중</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">미해결 Pending</p>
-              <p className="text-3xl font-bold text-slate-900 mt-2">{pendingStats.total}건</p>
-            </div>
-            <div className="p-3 bg-amber-50 rounded-xl">
-              <ClipboardList className="h-6 w-6 text-amber-600" />
-            </div>
-          </div>
-          <div className="mt-4 text-xs text-slate-500">
-            실시간 추적 중인 전체 미해결 항목 수
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">진행 중 (In Progress)</p>
-              <p className="text-3xl font-bold text-slate-900 mt-2">{pendingStats.in_progress}건</p>
-            </div>
-            <div className="p-3 bg-emerald-50 rounded-xl">
-              <TrendingUp className="h-6 w-6 text-emerald-600" />
-            </div>
-          </div>
-          <div className="mt-4 text-xs text-slate-500 flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></div>
-            <span>추적 및 조치 중인 태스크</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">긴급 조치 요망 (High)</p>
-              <p className="text-3xl font-bold text-red-600 mt-2">{pendingStats.high_priority}건</p>
-            </div>
-            <div className="p-3 bg-red-50 rounded-xl">
-              <AlertCircle className="h-6 w-6 text-red-600" />
-            </div>
-          </div>
-          <div className="mt-4 text-xs text-red-600 font-medium">
-            우선순위 높음 등급의 Pending 사항
-          </div>
-        </div>
-      </div>
-
-      {/* 프로젝트 간트 차트 (메인) */}
-      <div className="h-[600px] border-t border-slate-100 pt-6">
-        <GanttChart
-          items={ganttItems}
-          viewMode={ganttViewMode}
-          onViewModeChange={setGanttViewMode}
-          currentDate={ganttDate}
-          onDateChange={setGanttDate}
-          title="프로젝트 스케줄 현황 (Gantt)"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* MAIN GRID */}
+      <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
         
-        {/* 인력 투입 계획 (M-Plan) */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 lg:col-span-8 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">프로젝트 주요 인력 투입 현황 (M-Plan)</h2>
-              <p className="text-xs text-slate-500 mt-1">프로젝트별 투입 인원 및 스케줄 요약</p>
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="py-3 px-4 text-xs font-semibold text-slate-500">프로젝트</th>
-                  <th className="py-3 px-4 text-xs font-semibold text-slate-500">담당자 (역할)</th>
-                  <th className="py-3 px-4 text-xs font-semibold text-slate-500">투입 기간</th>
-                  <th className="py-3 px-4 text-xs font-semibold text-slate-500">상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mobilizations.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-xs text-slate-400">
-                      등록된 인력 투입 계획이 없습니다.
-                    </td>
-                  </tr>
-                ) : (
-                  mobilizations.slice(0, 5).map((mob) => {
-                    const today = new Date();
-                    const start = new Date(mob.start_date);
-                    const end = new Date(mob.end_date);
-                    const isActive = today >= start && today <= end;
-                    
-                    return (
-                      <tr key={mob.id} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="py-3 px-4 text-sm font-medium text-slate-900">{mob.project?.name || '-'}</td>
-                        <td className="py-3 px-4 text-sm text-slate-600">
-                          {mob.user?.full_name || mob.offline?.full_name || '미지정'} 
-                          {mob.role_description && <span className="text-xs text-slate-400 ml-1">({mob.role_description})</span>}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-slate-500">
-                          {mob.start_date} ~ {mob.end_date}
-                        </td>
-                        <td className="py-3 px-4">
-                          {isActive ? (
-                            <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-xs font-bold rounded-md">투입중</span>
-                          ) : today > end ? (
-                            <span className="px-2 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-md">완료</span>
-                          ) : (
-                            <span className="px-2 py-1 bg-amber-50 text-amber-600 text-xs font-bold rounded-md">예정</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-            {mobilizations.length > 5 && (
-              <div className="mt-4 text-center">
-                <Link to="/projects" className="text-xs text-indigo-600 font-semibold hover:underline">
-                  모든 투입 계획 보기 ({mobilizations.length}건)
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Pending 상태 및 긴급 항목 */}
-        <div className="space-y-6 lg:col-span-4">
-          
-          {/* 미제출 조직 요약 (축소된 형태) */}
-          <div className="bg-rose-50/50 rounded-2xl border border-rose-100 shadow-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-rose-900 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-rose-600" /> 주간 업데이트 미제출
-              </h2>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              {teams
-                .filter(team => {
-                   // 팀에 대해 제출(submitted/reviewed)된 주간 업데이트가 하나라도 있는지 확인
-                   const hasSubmitted = currentUpdates.some(cu => cu.team_id === team.id && cu.status !== 'draft');
-                   return !hasSubmitted;
-                })
-                .map(team => (
-                  <Link key={team.id} to={`/update?teamId=${team.id}`} className="px-2.5 py-1.5 bg-white border border-rose-200 text-rose-700 text-xs font-medium rounded-md hover:bg-rose-50 transition">
-                    {team.name}
-                  </Link>
-                ))
-              }
+        {/* LEFT: Teams & Pending */}
+        <div className="col-span-3 flex flex-col gap-4 min-h-0">
+          <div className="flex-1 bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex flex-col min-h-0">
+            <h2 className="text-xs font-bold text-slate-300 mb-3 flex items-center"><AlertCircle className="w-3.5 h-3.5 mr-1.5 text-rose-400"/>주간 미제출 조직</h2>
+            <div className="flex-1 overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
+              {teams.filter(t => !currentUpdates.some(cu => cu.team_id === t.id && cu.status !== 'draft')).map(team => (
+                <div key={team.id} className="text-xs bg-rose-950/30 border border-rose-900/50 text-rose-300 px-3 py-2 rounded-md flex justify-between items-center">
+                  <span>{team.name}</span>
+                  <span className="text-[10px] opacity-75">미제출</span>
+                </div>
+              ))}
               {teams.filter(t => !currentUpdates.some(cu => cu.team_id === t.id && cu.status !== 'draft')).length === 0 && (
-                <span className="text-xs text-emerald-600 font-medium">🎉 모든 팀이 제출을 완료했습니다!</span>
+                <div className="text-xs text-emerald-400 text-center py-4 bg-emerald-950/20 rounded border border-emerald-900/30">
+                  전체 조직 제출 완료
+                </div>
               )}
             </div>
           </div>
 
-          {/* Pending 분포 원형 차트 */}
-          {pendingDistributionData.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-              <h2 className="text-sm font-bold text-slate-900 mb-4">Pending 상태 현황</h2>
-              <div className="flex items-center justify-between">
-                <div className="h-24 w-24">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pendingDistributionData}
-                        innerRadius={20}
-                        outerRadius={35}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {pendingDistributionData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex-1 pl-4 space-y-2 text-xs">
-                  {pendingDistributionData.map((entry, _index) => (
-                    <div key={entry.name} className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-slate-600">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }}></span>
-                        {entry.name}
-                      </span>
-                      <span className="font-bold text-slate-900">{entry.value}건</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 긴급 Pending 목록 */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-900">🚨 긴급 이슈 목록 (Pending)</h2>
-              <Link to="/pending" className="text-xs text-sky-600 hover:underline">전체보기</Link>
-            </div>
-            
-            <div className="space-y-3">
+          <div className="flex-[1.5] bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex flex-col min-h-0">
+            <h2 className="text-xs font-bold text-slate-300 mb-3 flex items-center"><Clock className="w-3.5 h-3.5 mr-1.5 text-amber-400"/>긴급 Pending 이슈 (Top 5)</h2>
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
               {highPriorityItems.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  현재 해결이 필요한 긴급 항목이 없습니다.
-                </div>
+                <div className="text-xs text-slate-500 text-center py-4">긴급 이슈가 없습니다.</div>
               ) : (
-                highPriorityItems.slice(0, 3).map((item) => (
-                  <div key={item.id} className="p-3 bg-red-50/30 border border-red-100 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">{item.item_id}</span>
-                      <span className="text-slate-500 font-medium">{item.team?.name}</span>
+                highPriorityItems.slice(0, 5).map(item => (
+                  <div key={item.id} className="bg-slate-800/50 border border-slate-700/50 p-2.5 rounded-md flex flex-col gap-1.5 hover:bg-slate-800 transition cursor-pointer">
+                    <div className="flex justify-between items-start">
+                      <span className="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded font-mono border border-rose-500/30">{item.item_id}</span>
+                      <span className="text-[10px] text-slate-400">{item.team?.name}</span>
                     </div>
-                    <h4 className="text-xs font-semibold text-slate-900 line-clamp-1">{item.title}</h4>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-red-100/50">
-                      <span>담당: {item.assignee?.full_name || '미정'}</span>
-                      <span className="flex items-center text-red-600 font-medium">
-                        <Clock className="h-3 w-3 mr-0.5" /> {item.target_date || '기한 없음'}
-                      </span>
+                    <span className="text-xs font-medium text-slate-200 line-clamp-2 leading-tight">{item.title}</span>
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                      <span>{item.assignee?.full_name || '미정'}</span>
+                      <span className="text-amber-500">{item.target_date || '기한없음'}</span>
                     </div>
                   </div>
                 ))
@@ -406,6 +248,111 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* CENTER: M-Plan Matrix */}
+        <div className="col-span-6 bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex flex-col min-h-0 shadow-lg">
+          <div className="flex justify-between items-center mb-4 shrink-0">
+            <h2 className="text-xs font-bold text-slate-300 flex items-center">
+              <Activity className="w-3.5 h-3.5 mr-1.5 text-sky-400"/>프로젝트별 월간 투입 인원 현황 (M-PLAN)
+            </h2>
+            <Link to="/mobilization" className="text-[10px] text-sky-400 hover:text-sky-300 underline">상세 간트차트 보기</Link>
+          </div>
+          
+          <div className="flex-1 overflow-auto rounded-md border border-slate-800 custom-scrollbar">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-slate-950 sticky top-0 z-10 shadow-sm">
+                <tr>
+                  <th className="py-2.5 px-3 font-semibold text-slate-400 border-b border-slate-800 w-1/3">프로젝트명</th>
+                  {monthHeaders.map(h => (
+                    <th key={h.label} className="py-2.5 px-2 text-center font-semibold text-slate-400 border-b border-slate-800 border-l border-slate-800/50">
+                      {h.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {monthlyData.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">진행 중인 프로젝트가 없습니다.</td>
+                  </tr>
+                ) : (
+                  monthlyData.map(row => (
+                    <tr key={row.projectName} className="hover:bg-slate-800/30 transition">
+                      <td className="py-2 px-3 font-medium text-slate-300">{row.projectName}</td>
+                      {row.counts.map((c, i) => (
+                        <td key={i} className="py-2 px-2 text-center border-l border-slate-800/50">
+                          {c > 0 ? (
+                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-sm font-bold ${
+                              c >= 10 ? 'bg-rose-500/20 text-rose-400' :
+                              c >= 5 ? 'bg-amber-500/20 text-amber-400' :
+                              'bg-sky-500/20 text-sky-400'
+                            }`}>
+                              {c}
+                            </span>
+                          ) : (
+                            <span className="text-slate-700">-</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* RIGHT: Workload Top 5 */}
+        <div className="col-span-3 bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex flex-col min-h-0">
+          <div className="flex justify-between items-center mb-3 shrink-0">
+            <h2 className="text-xs font-bold text-slate-300 flex items-center">
+              <TrendingUp className="w-3.5 h-3.5 mr-1.5 text-rose-500"/>과부하 인력 (Workload Top 5)
+            </h2>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar">
+            {workloadRankings.length === 0 ? (
+              <div className="text-xs text-slate-500 text-center py-4">투입 데이터가 없습니다.</div>
+            ) : (
+              workloadRankings.map((rank, idx) => (
+                <div key={rank.id} className="flex items-center bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/50 relative overflow-hidden group">
+                  <div className={`absolute top-0 left-0 w-1 h-full ${
+                    idx === 0 ? 'bg-rose-500' : 
+                    idx === 1 ? 'bg-orange-500' : 
+                    idx === 2 ? 'bg-amber-500' : 
+                    'bg-slate-600'
+                  }`} />
+                  
+                  <div className="ml-2 flex-1 flex flex-col justify-center">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold text-slate-200">
+                        {idx + 1}. {rank.name}
+                        {rank.isOffline && <span className="ml-1 text-[9px] text-amber-500 font-normal border border-amber-500/30 px-1 rounded-sm bg-amber-500/10">미가입</span>}
+                      </span>
+                      <span className="text-[10px] text-slate-400">현재 <span className="font-bold text-white">{rank.currentConcurrentProjects}</span>개 투입중</span>
+                    </div>
+                    
+                    {/* Progress Bar (Visualizing workload against a max threshold say 5) */}
+                    <div className="w-full bg-slate-700/50 rounded-full h-1.5 mt-0.5">
+                      <div 
+                        className={`h-1.5 rounded-full ${rank.currentConcurrentProjects > 2 ? 'bg-rose-500' : rank.currentConcurrentProjects > 1 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min((rank.currentConcurrentProjects / 5) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[9px] text-slate-500 mt-1">누적 최대 병목: {rank.maxConcurrentProjects}회 중복</p>
+                  </div>
+                </div>
+              ))
+            )}
+            
+            <div className="mt-4 pt-3 border-t border-slate-800">
+              <p className="text-[10px] text-slate-500 text-center leading-relaxed">
+                현재 일자를 기준으로 <br/> 동시 투입된 프로젝트가 많은 순서입니다.
+              </p>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
