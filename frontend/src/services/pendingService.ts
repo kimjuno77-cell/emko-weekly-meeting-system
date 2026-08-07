@@ -219,6 +219,27 @@ export const updatePendingItem = async (
     console.error('Pending 항목 수정 실패:', error);
     throw new Error(error.message || 'Pending 항목을 수정하는데 실패했습니다.');
   }
+
+  // 연관된 Task가 있다면 동기화 업데이트
+  if (data && data.related_task_id) {
+    let taskStatus = 'pending';
+    if (data.status === 'in_progress') taskStatus = 'in_progress';
+    else if (data.status === 'completed') taskStatus = 'completed';
+    else if (data.status === 'waiting') taskStatus = 'blocked';
+    else if (data.status === 'cancelled') taskStatus = 'cancelled';
+
+    // 비동기 실행 (실패해도 Pending 업데이트 성공 유지)
+    supabase.from('tasks').update({
+      title: data.title,
+      description: data.description,
+      status: taskStatus,
+      priority: data.priority,
+      assigned_to: data.assigned_to,
+      progress_percentage: data.status === 'completed' ? 100 : (data.status === 'pending' ? 0 : undefined)
+    }).eq('id', data.related_task_id).then(({ error }) => {
+      if (error) console.error('연관된 Task 업데이트 실패:', error);
+    });
+  }
   
   return data;
 };
@@ -246,12 +267,25 @@ export const completePendingItem = async (itemId: string): Promise<PendingItem> 
     console.error('Pending 항목 완료 처리 실패:', error);
     throw new Error('Pending 항목 완료 처리에 실패했습니다.');
   }
+
+  // 연관된 Task 완료 처리 동기화
+  if (data && data.related_task_id) {
+    supabase.from('tasks').update({
+      status: 'completed',
+      progress_percentage: 100
+    }).eq('id', data.related_task_id).then(({ error }) => {
+      if (error) console.error('연관된 Task 업데이트 실패:', error);
+    });
+  }
   
   return data;
 };
 
 // 설명: Pending 항목 삭제
 export const deletePendingItem = async (itemId: string): Promise<void> => {
+  // 연관된 Task ID 확인
+  const { data: item } = await supabase.from('pending_items').select('related_task_id').eq('id', itemId).single();
+
   const { error } = await supabase
     .from('pending_items')
     .delete()
@@ -260,6 +294,13 @@ export const deletePendingItem = async (itemId: string): Promise<void> => {
   if (error) {
     console.error('Pending 항목 삭제 실패:', error);
     throw new Error('Pending 항목을 삭제하는데 실패했습니다.');
+  }
+
+  // 연관된 Task가 있었다면 함께 삭제 (선택적)
+  if (item && item.related_task_id) {
+    supabase.from('tasks').delete().eq('id', item.related_task_id).then(({ error }) => {
+      if (error) console.error('연관된 Task 삭제 실패:', error);
+    });
   }
 };
 

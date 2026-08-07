@@ -319,8 +319,9 @@ const Dashboard = () => {
             <div className="flex flex-wrap gap-2">
               {teams
                 .filter(team => {
-                   const u = currentUpdates.find(cu => cu.team_id === team.id);
-                   return !u || (u.status === 'draft');
+                   // 팀에 대해 제출(submitted/reviewed)된 주간 업데이트가 하나라도 있는지 확인
+                   const hasSubmitted = currentUpdates.some(cu => cu.team_id === team.id && cu.status !== 'draft');
+                   return !hasSubmitted;
                 })
                 .map(team => (
                   <Link key={team.id} to={`/update?teamId=${team.id}`} className="px-2.5 py-1.5 bg-white border border-rose-200 text-rose-700 text-xs font-medium rounded-md hover:bg-rose-50 transition">
@@ -328,7 +329,7 @@ const Dashboard = () => {
                   </Link>
                 ))
               }
-              {teams.filter(t => !currentUpdates.find(cu => cu.team_id === t.id) || currentUpdates.find(cu => cu.team_id === t.id)?.status === 'draft').length === 0 && (
+              {teams.filter(t => !currentUpdates.some(cu => cu.team_id === t.id && cu.status !== 'draft')).length === 0 && (
                 <span className="text-xs text-emerald-600 font-medium">🎉 모든 팀이 제출을 완료했습니다!</span>
               )}
             </div>
