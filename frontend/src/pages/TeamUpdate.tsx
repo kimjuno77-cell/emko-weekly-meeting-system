@@ -50,7 +50,6 @@ const TeamUpdate = () => {
 
   const [selectedTeamId, setSelectedTeamId] = useState<string>(safeInitialTeamId);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(safeInitialProjectId);
-  const [projectSearchText, setProjectSearchText] = useState<string>('');
 
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -117,7 +116,6 @@ const TeamUpdate = () => {
         if (matchedProject) {
           newParams.set('projectId', matchedProject.id);
           setSelectedProjectId(matchedProject.id);
-          setProjectSearchText(matchedProject.name);
         }
       }
     }
@@ -125,35 +123,6 @@ const TeamUpdate = () => {
     setSearchParams(newParams);
     if (type === 'team') setSelectedTeamId(id);
     if (type === 'project') setSelectedProjectId(id);
-  };
-
-  const handleProjectSearchSubmit = async () => {
-    const name = projectSearchText.trim();
-    if (!name) {
-      handleEntityChange('project', '');
-      return;
-    }
-    const existing = allProjects.find(p => p.name === name);
-    if (existing) {
-      handleEntityChange('project', existing.id);
-    } else {
-      try {
-        const { data, error } = await supabase
-          .from('projects')
-          .insert({ name, status: 'active' })
-          .select()
-          .single();
-        if (error) throw error;
-        if (data) {
-          setAllProjects(prev => [...prev, data]);
-          handleEntityChange('project', data.id);
-          toast.success(`'${name}' 프로젝트가 새로 생성되었습니다.`);
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error('새 프로젝트 생성에 실패했습니다.');
-      }
-    }
   };
 
   const fetchInitialData = async () => {
@@ -173,7 +142,6 @@ const TeamUpdate = () => {
           // URL에 projectId가 명시되어 있지 않은 경우에만 자동 매핑
           if (matchedProject && !safeInitialProjectId) {
             setSelectedProjectId(matchedProject.id);
-            setProjectSearchText(matchedProject.name);
             
             // URL 파라미터도 업데이트
             const newParams = new URLSearchParams(searchParams);
@@ -194,21 +162,14 @@ const TeamUpdate = () => {
               const recentProj = projectsData?.find(p => p.id === recentUpdate.project_id);
               if (recentProj) {
                 setSelectedProjectId(recentProj.id);
-                setProjectSearchText(recentProj.name);
                 
                 const newParams = new URLSearchParams(searchParams);
                 newParams.set('projectId', recentProj.id);
                 setSearchParams(newParams);
               }
             }
-          } else if (safeInitialProjectId) {
-            const found = projectsData?.find(p => p.id === safeInitialProjectId);
-            if (found) setProjectSearchText(found.name);
           }
         }
-      } else if (safeInitialProjectId) {
-        const found = projectsData?.find(p => p.id === safeInitialProjectId);
-        if (found) setProjectSearchText(found.name);
       }
 
       const { data: memberData } = await supabase
@@ -497,9 +458,9 @@ const TeamUpdate = () => {
     );
   }
 
-  // 프로젝트 전담 팀 여부 판단
+  // 일반 팀(이름이 '팀'으로 끝나는 경우) 여부 판단
   const selectedTeamData = allTeams.find(t => t.id === selectedTeamId);
-  const isProjectTeam = selectedTeamData ? allProjects.some(p => p.name === selectedTeamData.name) : false;
+  const isCommonTeam = selectedTeamData ? selectedTeamData.name.endsWith('팀') : false;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -538,48 +499,27 @@ const TeamUpdate = () => {
               ))}
             </select>
 
-            {!isProjectTeam ? (
+            {isCommonTeam ? (
               <>
                 <span className="text-slate-300 font-bold hidden md:block">+</span>
 
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    list="project-list"
-                    value={projectSearchText}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setProjectSearchText(val);
-                      if (val === '') {
-                        handleEntityChange('project', '');
-                      } else {
-                        const existing = allProjects.find(p => p.name === val);
-                        if (existing) {
-                          handleEntityChange('project', existing.id);
-                        }
-                      }
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && handleProjectSearchSubmit()}
-                    placeholder="프로젝트 직접 입력"
-                    className="px-3 py-2 border border-slate-200 rounded-l-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 w-full min-w-[200px]"
-                  />
-                  <button
-                    onClick={handleProjectSearchSubmit}
-                    className="px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-r-xl transition flex items-center text-sm font-bold"
-                  >
-                    적용
-                  </button>
-                  <datalist id="project-list">
-                    {allProjects.map(p => (
-                      <option key={p.id} value={p.name} />
-                    ))}
-                  </datalist>
-                </div>
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => handleEntityChange('project', e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50 min-w-[200px]"
+                >
+                  <option value="">-- 등록된 프로젝트 선택 --</option>
+                  {allProjects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
               </>
             ) : (
-              <div className="px-3 py-2 bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-inner">
-                <Sparkles className="w-4 h-4" /> 프로젝트 자동 매핑됨
-              </div>
+              selectedTeamData && (
+                <div className="px-3 py-2 bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-inner">
+                  <Sparkles className="w-4 h-4" /> 프로젝트 자동 매핑됨
+                </div>
+              )
             )}
           </div>
         </div>
