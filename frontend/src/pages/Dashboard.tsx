@@ -118,6 +118,8 @@ const Dashboard = () => {
           name: p.phase_name,
           startDate: p.planned_start_date,
           endDate: p.planned_end_date,
+          actualStartDate: p.actual_start_date || undefined,
+          actualEndDate: p.actual_end_date || undefined,
           colorClass
         };
       })

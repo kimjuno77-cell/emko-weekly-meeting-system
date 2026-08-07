@@ -58,7 +58,7 @@ const MobilizationPlan: React.FC = () => {
           *,
           project:projects(name),
           user:user_profiles!project_mobilizations_user_id_fkey(full_name, email),
-          phase:project_phases(phase_name)
+          phase:project_phases(phase_name, actual_start_date, actual_end_date)
         `)
         .order('start_date', { ascending: true });
 
@@ -218,6 +218,8 @@ const MobilizationPlan: React.FC = () => {
         name: ((plan as any).project?.name || '프로젝트') + ((plan as any).phase?.phase_name ? ` (${(plan as any).phase?.phase_name})` : ''),
         startDate: plan.start_date,
         endDate: plan.end_date,
+        actualStartDate: (plan as any).phase?.actual_start_date,
+        actualEndDate: (plan as any).phase?.actual_end_date,
         colorClass: 'bg-indigo-500',
         onClick: isAdmin ? () => openEditModal(plan) : undefined
       });
@@ -289,8 +291,8 @@ const MobilizationPlan: React.FC = () => {
                   <th className="px-6 py-4">투입 단계(Phase)</th>
                   <th className="px-6 py-4">투입 인원</th>
                   <th className="px-6 py-4">담당 역할</th>
-                  <th className="px-6 py-4">시작 예정일</th>
-                  <th className="px-6 py-4">종료 예정일</th>
+                  <th className="px-6 py-4">계획<br/><span className="text-[10px] text-slate-400">(시작~종료)</span></th>
+                  <th className="px-6 py-4">실제<br/><span className="text-[10px] text-slate-400">(시작~종료)</span></th>
                   {isAdmin && <th className="px-6 py-4 text-right">관리</th>}
                 </tr>
               </thead>
@@ -326,15 +328,33 @@ const MobilizationPlan: React.FC = () => {
                       {plan.role_description || '-'}
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-600">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3 text-slate-400" />
-                        <span>{plan.start_date}</span>
+                      <div className="flex flex-col gap-1 text-[11px]">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>{plan.start_date}</span>
+                        </div>
+                        <div className="flex items-center space-x-1 text-slate-400">
+                          <span className="w-3 text-center">~</span>
+                          <span>{plan.end_date}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-600">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3 text-slate-400" />
-                        <span>{plan.end_date}</span>
+                      <div className="flex flex-col gap-1 text-[11px]">
+                        {((plan as any).phase?.actual_start_date || (plan as any).phase?.actual_end_date) ? (
+                          <>
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="w-3 h-3 text-emerald-500" />
+                              <span className="text-emerald-700 font-semibold">{(plan as any).phase?.actual_start_date || '미정'}</span>
+                            </div>
+                            <div className="flex items-center space-x-1 text-slate-400">
+                              <span className="w-3 text-center">~</span>
+                              <span className="text-emerald-700 font-semibold">{(plan as any).phase?.actual_end_date || '진행중'}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-slate-400 italic">미입력</span>
+                        )}
                       </div>
                     </td>
                     {isAdmin && (

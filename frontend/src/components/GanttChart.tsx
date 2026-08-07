@@ -10,6 +10,8 @@ export interface GanttTask {
   name: string;
   startDate: string; // YYYY-MM-DD
   endDate: string;   // YYYY-MM-DD
+  actualStartDate?: string; // YYYY-MM-DD
+  actualEndDate?: string;   // YYYY-MM-DD
   colorClass?: string;
   onClick?: () => void;
 }
@@ -253,21 +255,55 @@ const GanttChart: React.FC<GanttChartProps> = ({
                             const roundedClass = [];
                             if (task.tStart >= timeWindow.start) roundedClass.push('rounded-l-md');
                             if (task.tEnd <= timeWindow.end) roundedClass.push('rounded-r-md');
+
+                            // 실제 일정 바 렌더링
+                            let actualBar = null;
+                            if (task.actualStartDate) {
+                              const aStart = parseISO(task.actualStartDate);
+                              // 실제 종료일이 없으면 오늘 날짜로 가정 (진행 중)
+                              const aEnd = task.actualEndDate ? parseISO(task.actualEndDate) : new Date();
+                              
+                              if (!(aEnd < timeWindow.start || aStart > timeWindow.end)) {
+                                const aVisibleStart = aStart < timeWindow.start ? timeWindow.start : aStart;
+                                const aVisibleEnd = aEnd > timeWindow.end ? timeWindow.end : aEnd;
+                                
+                                const aLeftPerc = (differenceInDays(aVisibleStart, timeWindow.start) / totalDays) * 100;
+                                const aWidthPerc = ((differenceInDays(aVisibleEnd, aVisibleStart) + 1) / totalDays) * 100;
+                                
+                                const aRoundedClass = [];
+                                if (aStart >= timeWindow.start) aRoundedClass.push('rounded-l-sm');
+                                if (aEnd <= timeWindow.end) aRoundedClass.push('rounded-r-sm');
+
+                                actualBar = (
+                                  <div
+                                    className={`absolute h-1.5 z-20 bg-emerald-500/80 shadow-sm ${aRoundedClass.join(' ')}`}
+                                    style={{
+                                      top: `${(task.trackIdx || 0) * 32 + 25}px`,
+                                      left: `${Math.max(0, aLeftPerc)}%`,
+                                      width: `${Math.min(100 - aLeftPerc, aWidthPerc)}%`,
+                                    }}
+                                    title={`[실제] ${task.name} (${task.actualStartDate} ~ ${task.actualEndDate || '진행중'})`}
+                                  />
+                                );
+                              }
+                            }
                             
                             return (
-                              <div
-                                key={task.id || tIdx}
-                                onClick={task.onClick}
-                                className={`absolute h-7 flex items-center px-2 text-[10px] font-bold text-white overflow-hidden shadow-sm hover:shadow-md hover:brightness-110 transition-all cursor-pointer z-10 ${roundedClass.join(' ')} ${task.colorClass || 'bg-indigo-500'}`}
-                                style={{ 
-                                  top: `${(task.trackIdx || 0) * 32 + 8}px`,
-                                  left: `${Math.max(0, leftPerc)}%`, 
-                                  width: `${Math.min(100 - leftPerc, widthPerc)}%`,
-                                }}
-                                title={`${task.name} (${task.startDate} ~ ${task.endDate || '미정'})`}
-                              >
-                                <span className="truncate drop-shadow-sm">{task.name}</span>
-                              </div>
+                              <React.Fragment key={task.id || tIdx}>
+                                <div
+                                  onClick={task.onClick}
+                                  className={`absolute h-5 flex items-center px-2 text-[10px] font-bold text-white overflow-hidden shadow-sm hover:shadow-md hover:brightness-110 transition-all cursor-pointer z-10 ${roundedClass.join(' ')} ${task.colorClass || 'bg-indigo-500'}`}
+                                  style={{ 
+                                    top: `${(task.trackIdx || 0) * 32 + 4}px`,
+                                    left: `${Math.max(0, leftPerc)}%`, 
+                                    width: `${Math.min(100 - leftPerc, widthPerc)}%`,
+                                  }}
+                                  title={`[계획] ${task.name} (${task.startDate} ~ ${task.endDate || '미정'})`}
+                                >
+                                  <span className="truncate drop-shadow-sm">{task.name}</span>
+                                </div>
+                                {actualBar}
+                              </React.Fragment>
                             );
                           })}
                         </div>
