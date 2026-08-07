@@ -32,7 +32,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [mobilizations, setMobilizations] = useState<any[]>([]);
   const [workloadRankings, setWorkloadRankings] = useState<WorkloadRanking[]>([]);
-  const [activeTab, setActiveTab] = useState<'mplan' | 'phase'>('mplan');
+  const [activeTab, setActiveTab] = useState<'mplan' | 'phase' | 'manhour'>('mplan');
   
   const { weekStartDate, weekEndDate } = getCurrentWeekDates();
 
@@ -170,6 +170,97 @@ const Dashboard = () => {
     return rows;
   }, [projects, monthHeaders]);
 
+  // Man/Hour Aggregation
+  const manHourData = useMemo(() => {
+    if (mobilizations.length === 0 || projects.length === 0) return { columns: [], rows: [] };
+
+    // Get active projects for columns
+    const activeProjects = projects.filter(p => p.status === 'active');
+    
+    // personId -> { name: string, isOffline: boolean, projectHours: Map<string, number>, total: number }
+    const personMap = new Map<string, { name: string, isOffline: boolean, projectHours: Map<string, number>, total: number }>();
+
+    // Init personMap from mobilizations to get names
+    mobilizations.forEach(mob => {
+      const pId = mob.user_id || mob.offline_personnel_id;
+      if (!pId) return;
+      if (!personMap.has(pId)) {
+        personMap.set(pId, {
+          name: mob.user ? mob.user.full_name : (mob.offline ? mob.offline.full_name : '알 수 없음'),
+          isOffline: !mob.user_id,
+          projectHours: new Map(),
+          total: 0
+        });
+      }
+    });
+
+    // Find min and max date
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+    mobilizations.forEach(mob => {
+      const s = new Date(mob.start_date).getTime();
+      const e = new Date(mob.end_date).getTime();
+      if (s < minTime) minTime = s;
+      if (e > maxTime) maxTime = e;
+    });
+
+    if (minTime === Infinity) return { columns: activeProjects, rows: [] };
+
+    const startDay = new Date(minTime);
+    const endDay = new Date(maxTime);
+    
+    // Normalize to midnight
+    startDay.setHours(0,0,0,0);
+    endDay.setHours(0,0,0,0);
+
+    for (let d = new Date(startDay); d <= endDay; d.setDate(d.getDate() + 1)) {
+      const dayOfWeek = d.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekend
+
+      const time = d.getTime();
+
+      // Find all active mobs for this day
+      // group by personId -> Set of projectIds
+      const dayPersonProjects = new Map<string, Set<string>>();
+
+      mobilizations.forEach(mob => {
+        const pId = mob.user_id || mob.offline_personnel_id;
+        if (!pId) return;
+
+        const s = new Date(mob.start_date).setHours(0,0,0,0);
+        const e = new Date(mob.end_date).setHours(0,0,0,0);
+
+        if (time >= s && time <= e) {
+          if (!dayPersonProjects.has(pId)) {
+            dayPersonProjects.set(pId, new Set());
+          }
+          dayPersonProjects.get(pId)!.add(mob.project_id);
+        }
+      });
+
+      // Distribute 8 hours
+      dayPersonProjects.forEach((projSet, pId) => {
+        const n = projSet.size;
+        if (n === 0) return;
+        const hoursPerProj = 8 / n;
+        
+        const personInfo = personMap.get(pId)!;
+        projSet.forEach(projId => {
+          const current = personInfo.projectHours.get(projId) || 0;
+          personInfo.projectHours.set(projId, current + hoursPerProj);
+          personInfo.total += hoursPerProj;
+        });
+      });
+    }
+
+    // Convert map to array and sort by total hours descending
+    const rows = Array.from(personMap.values())
+      .filter(p => p.total > 0) // only include if they have hours
+      .sort((a, b) => b.total - a.total);
+
+    return { columns: activeProjects, rows };
+  }, [mobilizations, projects]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-900">
@@ -306,21 +397,43 @@ const Dashboard = () => {
               >
                 <TrendingUp className="w-3.5 h-3.5 mr-1.5" /> 공정 진행 (PHASE)
               </button>
+              <button 
+                onClick={() => setActiveTab('manhour')}
+                className={`text-xs font-bold flex items-center pb-2 border-b-2 transition-colors relative top-[9px] ${activeTab === 'manhour' ? 'text-emerald-400 border-emerald-400' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+              >
+                <Clock className="w-3.5 h-3.5 mr-1.5" /> 총 누적 시간 (M/H)
+              </button>
             </div>
             {activeTab === 'mplan' && <Link to="/mobilization" className="text-[10px] text-sky-400 hover:text-sky-300 underline">상세 간트차트 보기</Link>}
             {activeTab === 'phase' && <Link to="/projects" className="text-[10px] text-indigo-400 hover:text-indigo-300 underline">프로젝트 관리 가기</Link>}
+            {activeTab === 'manhour' && <div className="text-[9px] text-slate-500 mb-1">* 평일(월~금) 기준 계산</div>}
           </div>
           
           <div className="flex-1 overflow-auto rounded-md border border-slate-800 custom-scrollbar">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-slate-950 sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="py-2.5 px-3 font-semibold text-slate-400 border-b border-slate-800 w-1/3">프로젝트명</th>
-                  {monthHeaders.map(h => (
-                    <th key={h.label} className="py-2.5 px-2 text-center font-semibold text-slate-400 border-b border-slate-800 border-l border-slate-800/50">
-                      {h.label}
-                    </th>
-                  ))}
+                  <th className="py-2.5 px-3 font-semibold text-slate-400 border-b border-slate-800 w-1/4">
+                    {activeTab === 'manhour' ? '인원명' : '프로젝트명'}
+                  </th>
+                  {activeTab !== 'manhour' ? (
+                    monthHeaders.map(h => (
+                      <th key={h.label} className="py-2.5 px-2 text-center font-semibold text-slate-400 border-b border-slate-800 border-l border-slate-800/50">
+                        {h.label}
+                      </th>
+                    ))
+                  ) : (
+                    <>
+                      {manHourData.columns.map(p => (
+                        <th key={p.id} className="py-2.5 px-2 text-center font-semibold text-slate-400 border-b border-slate-800 border-l border-slate-800/50 truncate max-w-[80px]" title={p.name}>
+                          {p.name}
+                        </th>
+                      ))}
+                      <th className="py-2.5 px-3 text-center font-bold text-emerald-500 border-b border-slate-800 border-l border-slate-800/50">
+                        Total
+                      </th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -351,7 +464,7 @@ const Dashboard = () => {
                       </tr>
                     ))
                   )
-                ) : (
+                ) : activeTab === 'phase' ? (
                   phaseProgressData.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-slate-500">진행 중인 프로젝트가 없습니다.</td>
@@ -378,7 +491,39 @@ const Dashboard = () => {
                       </tr>
                     ))
                   )
-                )}
+                ) : activeTab === 'manhour' ? (
+                  manHourData.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={manHourData.columns.length + 2} className="py-8 text-center text-slate-500">투입 내역이 없습니다.</td>
+                    </tr>
+                  ) : (
+                    manHourData.rows.map(row => (
+                      <tr key={row.name} className="hover:bg-slate-800/30 transition">
+                        <td className="py-2 px-3 font-medium text-slate-300 flex items-center gap-1.5">
+                          {row.name}
+                          {row.isOffline && <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded border border-amber-500/30">미가입</span>}
+                        </td>
+                        {manHourData.columns.map(p => {
+                          const val = row.projectHours.get(p.id);
+                          return (
+                            <td key={p.id} className="py-2 px-2 text-center border-l border-slate-800/50 font-mono text-[10px]">
+                              {val ? (
+                                <span className={val > 100 ? "text-emerald-400 font-bold" : "text-slate-300"}>
+                                  {Number.isInteger(val) ? val : val.toFixed(1)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-700">-</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="py-2 px-3 text-center border-l border-slate-800/50 font-mono font-bold text-emerald-400">
+                          {Number.isInteger(row.total) ? row.total : row.total.toFixed(1)}
+                        </td>
+                      </tr>
+                    ))
+                  )
+                ) : null}
               </tbody>
             </table>
           </div>
