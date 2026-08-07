@@ -33,6 +33,7 @@ const Dashboard = () => {
   const [mobilizations, setMobilizations] = useState<any[]>([]);
   const [workloadRankings, setWorkloadRankings] = useState<WorkloadRanking[]>([]);
   const [activeTab, setActiveTab] = useState<'mplan' | 'phase' | 'manhour'>('mplan');
+  const [manHourView, setManHourView] = useState<'matrix' | 'monthly'>('matrix');
   
   const { weekStartDate, weekEndDate } = getCurrentWeekDates();
 
@@ -274,6 +275,90 @@ const Dashboard = () => {
     return { columns: activeProjects, rows, projectTotals, grandTotal };
   }, [mobilizations, projects]);
 
+  // Man/Hour Monthly Trend
+  const manHourMonthlyData = useMemo(() => {
+    if (mobilizations.length === 0 || projects.length === 0) return { personRows: [], projectRows: [] };
+
+    const activeProjects = projects.filter(p => p.status === 'active');
+    const projectNames = new Map(activeProjects.map(p => [p.id, p.name]));
+
+    const personMonthly = Array.from({ length: 6 }, () => new Map<string, number>());
+    const projectMonthly = Array.from({ length: 6 }, () => new Map<string, number>());
+    const personDetails = new Map<string, { name: string, isOffline: boolean }>();
+
+    mobilizations.forEach(mob => {
+      const pId = mob.user_id || mob.offline_personnel_id;
+      if (!pId) return;
+      if (!personDetails.has(pId)) {
+        personDetails.set(pId, {
+          name: mob.user ? mob.user.full_name : (mob.offline ? mob.offline.full_name : '알 수 없음'),
+          isOffline: !mob.user_id,
+        });
+      }
+    });
+
+    monthHeaders.forEach((mh, monthIdx) => {
+      const startOfMonth = new Date(mh.year, mh.month - 1, 1);
+      const endOfMonth = new Date(mh.year, mh.month, 0);
+      
+      const startDay = new Date(startOfMonth);
+      const endDay = new Date(endOfMonth);
+      
+      for (let d = new Date(startDay); d <= endDay; d.setDate(d.getDate() + 1)) {
+        const dayOfWeek = d.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+        const time = d.getTime();
+        const dayPersonProjects = new Map<string, Set<string>>();
+
+        mobilizations.forEach(mob => {
+          const pId = mob.user_id || mob.offline_personnel_id;
+          if (!pId) return;
+
+          const s = new Date(mob.start_date).setHours(0,0,0,0);
+          const e = new Date(mob.end_date).setHours(0,0,0,0);
+
+          if (time >= s && time <= e) {
+            if (!dayPersonProjects.has(pId)) {
+              dayPersonProjects.set(pId, new Set());
+            }
+            dayPersonProjects.get(pId)!.add(mob.project_id);
+          }
+        });
+
+        dayPersonProjects.forEach((projSet, pId) => {
+          const n = projSet.size;
+          if (n === 0) return;
+          const hoursPerProj = 8 / n;
+
+          // Add 8 hours to person's monthly total
+          const currentPersonTotal = personMonthly[monthIdx].get(pId) || 0;
+          personMonthly[monthIdx].set(pId, currentPersonTotal + 8);
+
+          // Distribute 8 hours among projects for this month
+          projSet.forEach(projId => {
+            const currentProjTotal = projectMonthly[monthIdx].get(projId) || 0;
+            projectMonthly[monthIdx].set(projId, currentProjTotal + hoursPerProj);
+          });
+        });
+      }
+    });
+
+    const personRows = Array.from(personDetails.entries()).map(([pId, details]) => {
+      const months = personMonthly.map(monthMap => monthMap.get(pId) || 0);
+      const total = months.reduce((a, b) => a + b, 0);
+      return { ...details, months, total };
+    }).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
+
+    const projectRows = Array.from(projectNames.entries()).map(([projId, name]) => {
+      const months = projectMonthly.map(monthMap => monthMap.get(projId) || 0);
+      const total = months.reduce((a, b) => a + b, 0);
+      return { name, months, total };
+    }).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
+
+    return { personRows, projectRows };
+  }, [mobilizations, projects, monthHeaders]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-900">
@@ -419,7 +504,23 @@ const Dashboard = () => {
             </div>
             {activeTab === 'mplan' && <Link to="/mobilization" className="text-[10px] text-sky-400 hover:text-sky-300 underline">상세 간트차트 보기</Link>}
             {activeTab === 'phase' && <Link to="/projects" className="text-[10px] text-indigo-400 hover:text-indigo-300 underline">프로젝트 관리 가기</Link>}
-            {activeTab === 'manhour' && <div className="text-[9px] text-slate-500 mb-1">* 평일(월~금) 기준 계산</div>}
+            {activeTab === 'manhour' && (
+              <div className="flex items-center space-x-2 mr-2">
+                <button
+                  onClick={() => setManHourView('matrix')}
+                  className={`text-[10px] px-2 py-1 rounded-sm font-semibold transition-colors ${manHourView === 'matrix' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                >
+                  개인-프로젝트 매트릭스
+                </button>
+                <button
+                  onClick={() => setManHourView('monthly')}
+                  className={`text-[10px] px-2 py-1 rounded-sm font-semibold transition-colors ${manHourView === 'monthly' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                >
+                  월간 추이 뷰
+                </button>
+                <div className="text-[9px] text-slate-500 ml-2">* 평일(월~금) 기준 계산</div>
+              </div>
+            )}
           </div>
           
           <div className="flex-1 overflow-auto rounded-md border border-slate-800 custom-scrollbar">
@@ -427,9 +528,9 @@ const Dashboard = () => {
               <thead className="bg-slate-950 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="py-2.5 px-3 font-semibold text-slate-400 border-b border-slate-800 w-1/4">
-                    {activeTab === 'manhour' ? '인원명' : '프로젝트명'}
+                    {activeTab === 'manhour' ? (manHourView === 'monthly' ? '인원명' : '인원명') : '프로젝트명'}
                   </th>
-                  {activeTab !== 'manhour' ? (
+                  {activeTab !== 'manhour' || (activeTab === 'manhour' && manHourView === 'monthly') ? (
                     monthHeaders.map(h => (
                       <th key={h.label} className="py-2.5 px-2 text-center font-semibold text-slate-400 border-b border-slate-800 border-l border-slate-800/50">
                         {h.label}
@@ -442,10 +543,12 @@ const Dashboard = () => {
                           {p.name}
                         </th>
                       ))}
-                      <th className="py-2.5 px-3 text-center font-bold text-emerald-500 border-b border-slate-800 border-l border-slate-800/50">
-                        Total
-                      </th>
                     </>
+                  )}
+                  {activeTab === 'manhour' && (
+                    <th className="py-2.5 px-3 text-center font-bold text-emerald-500 border-b border-slate-800 border-l border-slate-800/50 w-[80px]">
+                      Total
+                    </th>
                   )}
                 </tr>
               </thead>
@@ -504,7 +607,7 @@ const Dashboard = () => {
                       </tr>
                     ))
                   )
-                ) : activeTab === 'manhour' ? (
+                ) : activeTab === 'manhour' && manHourView === 'matrix' ? (
                   manHourData.rows.length === 0 ? (
                     <tr>
                       <td colSpan={manHourData.columns.length + 2} className="py-8 text-center text-slate-500">투입 내역이 없습니다.</td>
@@ -536,9 +639,68 @@ const Dashboard = () => {
                       </tr>
                     ))
                   )
+                ) : activeTab === 'manhour' && manHourView === 'monthly' ? (
+                  manHourMonthlyData.personRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-500">투입 내역이 없습니다.</td>
+                    </tr>
+                  ) : (
+                    <>
+                      {manHourMonthlyData.personRows.map(row => (
+                        <tr key={row.name} className="hover:bg-slate-800/30 transition">
+                          <td className="py-2 px-3 font-medium text-slate-300 flex items-center gap-1.5">
+                            {row.name}
+                            {row.isOffline && <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded border border-amber-500/30">미가입</span>}
+                          </td>
+                          {row.months.map((val, i) => (
+                            <td key={i} className="py-2 px-2 text-center border-l border-slate-800/50 font-mono text-[10px]">
+                              {val > 0 ? (
+                                <span className={val >= 160 ? "text-emerald-400 font-bold" : "text-slate-300"}>
+                                  {Number.isInteger(val) ? val : val.toFixed(1)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-700">-</span>
+                              )}
+                            </td>
+                          ))}
+                          <td className="py-2 px-3 text-center border-l border-slate-800/50 font-mono font-bold text-emerald-400">
+                            {Number.isInteger(row.total) ? row.total : row.total.toFixed(1)}
+                          </td>
+                        </tr>
+                      ))}
+                      
+                      {/* Project Header Row for Monthly View */}
+                      <tr>
+                        <td colSpan={8} className="bg-slate-950 py-2.5 px-3 font-semibold text-slate-400 border-y border-slate-800">
+                          프로젝트별 M/H 합계 추이
+                        </td>
+                      </tr>
+                      {manHourMonthlyData.projectRows.map(row => (
+                        <tr key={row.name} className="hover:bg-slate-800/30 transition">
+                          <td className="py-2 px-3 font-medium text-slate-300">
+                            {row.name}
+                          </td>
+                          {row.months.map((val, i) => (
+                            <td key={i} className="py-2 px-2 text-center border-l border-slate-800/50 font-mono text-[10px]">
+                              {val > 0 ? (
+                                <span className="text-slate-300">
+                                  {Number.isInteger(val) ? val : val.toFixed(1)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-700">-</span>
+                              )}
+                            </td>
+                          ))}
+                          <td className="py-2 px-3 text-center border-l border-slate-800/50 font-mono font-bold text-emerald-400">
+                            {Number.isInteger(row.total) ? row.total : row.total.toFixed(1)}
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  )
                 ) : null}
               </tbody>
-              {activeTab === 'manhour' && manHourData.rows.length > 0 && (
+              {activeTab === 'manhour' && manHourView === 'matrix' && manHourData.rows.length > 0 && (
                 <tfoot className="bg-slate-900 sticky bottom-0 z-10 shadow-[0_-1px_0_rgba(30,41,59,1)]">
                   <tr>
                     <td className="py-2.5 px-3 font-bold text-slate-300 text-right">TOTAL</td>
