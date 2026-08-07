@@ -93,17 +93,22 @@ const Dashboard = () => {
       });
     }
 
-    const dataMap = new Map<string, number[]>(); // projectId -> array of counts corresponding to headers
+    // projectId -> array of Set<string> corresponding to headers to keep track of distinct personnel
+    const dataMap = new Map<string, Set<string>[]>(); 
 
     projects.forEach(p => {
       if (p.status !== 'active') return;
-      dataMap.set(p.id, [0, 0, 0, 0, 0, 0]);
+      dataMap.set(p.id, [new Set(), new Set(), new Set(), new Set(), new Set(), new Set()]);
     });
 
     mobilizations.forEach(mob => {
       const pId = mob.project_id;
       if (!dataMap.has(pId)) return;
       
+      // 고유 인원 식별자
+      const personId = mob.user_id || mob.offline_personnel_id;
+      if (!personId) return;
+
       const s = new Date(mob.start_date);
       const e = new Date(mob.end_date);
       
@@ -113,16 +118,19 @@ const Dashboard = () => {
         const endOfMonth = new Date(h.year, h.month + 1, 0);
         
         if (s <= endOfMonth && e >= startOfMonth) {
-          const counts = dataMap.get(pId)!;
-          counts[index] += 1;
+          const sets = dataMap.get(pId)!;
+          sets[index].add(personId);
         }
       });
     });
 
-    const rows = projects.filter(p => p.status === 'active').map(p => ({
-      projectName: p.name,
-      counts: dataMap.get(p.id)!
-    }));
+    const rows = projects.filter(p => p.status === 'active').map(p => {
+      const sets = dataMap.get(p.id)!;
+      return {
+        projectName: p.name,
+        counts: sets.map(s => s.size)
+      };
+    });
 
     // sort by total mobilizations in 6 months
     rows.sort((a, b) => b.counts.reduce((sum, c) => sum + c, 0) - a.counts.reduce((sum, c) => sum + c, 0));
