@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, Briefcase, X, Plus, AlertTriangle } from 'lucide-react';
+import { Users, UserPlus, Briefcase, X, AlertTriangle } from 'lucide-react';
 import { memberManagementService } from '@/services/memberManagementService';
 import { personnelService } from '@/services/personnelService';
 import { UserWorkload, UserProfile, Team, Project } from '@/types';
@@ -313,7 +313,6 @@ export default function WorkloadDashboard() {
                   {isAssigning ? '배정 중...' : '배정 완료'}
                 </button>
               </div>
-            </div>
           </div>
         </div>
       )}

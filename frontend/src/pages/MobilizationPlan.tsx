@@ -109,7 +109,7 @@ const MobilizationPlan: React.FC = () => {
     setEditPlanId(plan.id);
     setSelectedProjectId(plan.project_id);
     setSelectedPhaseId(plan.phase_id || '');
-    setSelectedUserIds([plan.user_id]);
+    setSelectedUserIds([plan.user_id || plan.offline_personnel_id || '']);
     setRoleDesc(plan.role_description || '');
     setStartDate(plan.start_date);
     setEndDate(plan.end_date);

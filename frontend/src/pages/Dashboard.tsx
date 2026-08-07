@@ -8,7 +8,6 @@ import {
   AlertCircle,
   Clock,
   TrendingUp,
-  CheckCircle2,
   ArrowRight,
   ClipboardList
 } from 'lucide-react';
@@ -21,15 +20,9 @@ import toast from 'react-hot-toast';
 import GanttChart, { GanttItem, ViewMode } from '@/components/GanttChart';
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
   PieChart,
   Pie,
-  Cell,
-  Legend
+  Cell
 } from 'recharts';
 
 const Dashboard = () => {
@@ -99,25 +92,6 @@ const Dashboard = () => {
   const submittedUpdates = currentUpdates.filter(u => u.status === 'submitted' || u.status === 'reviewed');
   const submittedCount = submittedUpdates.length;
   const draftCount = currentUpdates.filter(u => u.status === 'draft').length;
-  const notStartedCount = Math.max(0, teams.length - currentUpdates.length);
-
-  // 차트 데이터 가공 (팀별 완료율 & 작업 수)
-  const chartData = teams.map(team => {
-    // 팀의 모든 이번 주 업데이트들을 가져옴
-    const teamUpdates = currentUpdates.filter(u => u.team_id === team.id);
-    const tasks = teamUpdates.flatMap(u => u.tasks || []);
-    const progressCount = tasks.filter(t => t.task_type === 'progress').length;
-    const issueCount = tasks.filter(t => t.task_type === 'issue').length;
-    const planCount = tasks.filter(t => t.task_type === 'plan').length;
-    
-    return {
-      name: team.name,
-      '진행사항': progressCount,
-      '이슈사항': issueCount,
-      '계획': planCount,
-      '총 작업수': tasks.length
-    };
-  });
 
   // Pending 상태 분포 데이터 가공
   const pendingDistributionData = [
