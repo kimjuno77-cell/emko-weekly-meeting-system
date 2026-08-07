@@ -32,6 +32,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [mobilizations, setMobilizations] = useState<any[]>([]);
   const [workloadRankings, setWorkloadRankings] = useState<WorkloadRanking[]>([]);
+  const [activeTab, setActiveTab] = useState<'mplan' | 'phase'>('mplan');
   
   const { weekStartDate, weekEndDate } = getCurrentWeekDates();
 
@@ -47,7 +48,7 @@ const Dashboard = () => {
         getAllTeams(),
         getPendingStats(),
         getHighPriorityPendingItems(),
-        supabase.from('projects').select('*').order('name', { ascending: true }),
+        supabase.from('projects').select('*, phases:project_phases(*)').order('name', { ascending: true }),
         supabase.from('project_mobilizations').select('*, user:user_profiles!project_mobilizations_user_id_fkey(full_name), offline:offline_personnel!project_mobilizations_offline_personnel_id_fkey(full_name), project:projects(name)').order('start_date', { ascending: true }),
         getWeeklyUpdatesByWeek(weekStartDate),
         supabase.from('user_profiles').select('*'),
@@ -128,6 +129,38 @@ const Dashboard = () => {
 
     return { monthHeaders: headers, monthlyData: rows };
   }, [projects, mobilizations]);
+
+  // Monthly Aggregation for Phase Progress
+  const phaseProgressData = useMemo(() => {
+    if (projects.length === 0) return [];
+    
+    const rows = projects.filter(p => p.status === 'active').map(p => {
+      const phasesList = monthHeaders.map(h => {
+        const startOfMonth = new Date(h.year, h.month, 1);
+        const endOfMonth = new Date(h.year, h.month + 1, 0);
+        
+        // Find phases active in this month
+        const activePhases = (p.phases || []).filter((ph: any) => {
+          const sDateStr = ph.actual_start_date || ph.planned_start_date;
+          const eDateStr = ph.actual_end_date || ph.planned_end_date;
+          if (!sDateStr || !eDateStr) return false;
+          
+          const s = new Date(sDateStr);
+          const e = new Date(eDateStr);
+          return s <= endOfMonth && e >= startOfMonth;
+        });
+        
+        return activePhases.map((ph: any) => ph.phase_name).join(', ');
+      });
+      
+      return {
+        projectName: p.name,
+        phasesList
+      };
+    });
+    
+    return rows;
+  }, [projects, monthHeaders]);
 
   if (loading) {
     return (
@@ -249,13 +282,25 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* CENTER: M-Plan Matrix */}
+        {/* CENTER: Matrix Area */}
         <div className="col-span-6 bg-slate-900/50 border border-slate-800 rounded-lg p-4 flex flex-col min-h-0 shadow-lg">
-          <div className="flex justify-between items-center mb-4 shrink-0">
-            <h2 className="text-xs font-bold text-slate-300 flex items-center">
-              <Activity className="w-3.5 h-3.5 mr-1.5 text-sky-400"/>프로젝트별 월간 투입 인원 현황 (M-PLAN)
-            </h2>
-            <Link to="/mobilization" className="text-[10px] text-sky-400 hover:text-sky-300 underline">상세 간트차트 보기</Link>
+          <div className="flex justify-between items-end mb-4 shrink-0 border-b border-slate-800 pb-2">
+            <div className="flex space-x-6">
+              <button 
+                onClick={() => setActiveTab('mplan')}
+                className={`text-xs font-bold flex items-center pb-2 border-b-2 transition-colors relative top-[9px] ${activeTab === 'mplan' ? 'text-sky-400 border-sky-400' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+              >
+                <Activity className="w-3.5 h-3.5 mr-1.5" /> 인력 투입 (M-PLAN)
+              </button>
+              <button 
+                onClick={() => setActiveTab('phase')}
+                className={`text-xs font-bold flex items-center pb-2 border-b-2 transition-colors relative top-[9px] ${activeTab === 'phase' ? 'text-indigo-400 border-indigo-400' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+              >
+                <TrendingUp className="w-3.5 h-3.5 mr-1.5" /> 공정 진행 (PHASE)
+              </button>
+            </div>
+            {activeTab === 'mplan' && <Link to="/mobilization" className="text-[10px] text-sky-400 hover:text-sky-300 underline">상세 간트차트 보기</Link>}
+            {activeTab === 'phase' && <Link to="/projects" className="text-[10px] text-indigo-400 hover:text-indigo-300 underline">프로젝트 관리 가기</Link>}
           </div>
           
           <div className="flex-1 overflow-auto rounded-md border border-slate-800 custom-scrollbar">
@@ -271,31 +316,60 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {monthlyData.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">진행 중인 프로젝트가 없습니다.</td>
-                  </tr>
-                ) : (
-                  monthlyData.map(row => (
-                    <tr key={row.projectName} className="hover:bg-slate-800/30 transition">
-                      <td className="py-2 px-3 font-medium text-slate-300">{row.projectName}</td>
-                      {row.counts.map((c, i) => (
-                        <td key={i} className="py-2 px-2 text-center border-l border-slate-800/50">
-                          {c > 0 ? (
-                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-sm font-bold ${
-                              c >= 10 ? 'bg-rose-500/20 text-rose-400' :
-                              c >= 5 ? 'bg-amber-500/20 text-amber-400' :
-                              'bg-sky-500/20 text-sky-400'
-                            }`}>
-                              {c}
-                            </span>
-                          ) : (
-                            <span className="text-slate-700">-</span>
-                          )}
-                        </td>
-                      ))}
+                {activeTab === 'mplan' ? (
+                  monthlyData.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-500">진행 중인 프로젝트가 없습니다.</td>
                     </tr>
-                  ))
+                  ) : (
+                    monthlyData.map(row => (
+                      <tr key={row.projectName} className="hover:bg-slate-800/30 transition">
+                        <td className="py-2 px-3 font-medium text-slate-300">{row.projectName}</td>
+                        {row.counts.map((c, i) => (
+                          <td key={i} className="py-2 px-2 text-center border-l border-slate-800/50">
+                            {c > 0 ? (
+                              <span className={`inline-flex items-center justify-center w-5 h-5 rounded-sm font-bold ${
+                                c >= 10 ? 'bg-rose-500/20 text-rose-400' :
+                                c >= 5 ? 'bg-amber-500/20 text-amber-400' :
+                                'bg-sky-500/20 text-sky-400'
+                              }`}>
+                                {c}
+                              </span>
+                            ) : (
+                              <span className="text-slate-700">-</span>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  )
+                ) : (
+                  phaseProgressData.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-500">진행 중인 프로젝트가 없습니다.</td>
+                    </tr>
+                  ) : (
+                    phaseProgressData.map(row => (
+                      <tr key={row.projectName} className="hover:bg-slate-800/30 transition">
+                        <td className="py-2 px-3 font-medium text-slate-300">{row.projectName}</td>
+                        {row.phasesList.map((phText, i) => (
+                          <td key={i} className="py-2 px-1 text-center border-l border-slate-800/50">
+                            {phText ? (
+                              <div className="flex flex-wrap gap-1 justify-center">
+                                {phText.split(', ').map((pt: string, idx: number) => (
+                                  <span key={idx} className="text-[9px] font-medium bg-indigo-500/10 text-indigo-300 px-1.5 py-0.5 rounded-sm whitespace-nowrap border border-indigo-500/20">
+                                    {pt}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-700">-</span>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  )
                 )}
               </tbody>
             </table>
