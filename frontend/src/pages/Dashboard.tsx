@@ -76,7 +76,7 @@ const Dashboard = () => {
 
       const users = usersRes.data || [];
       const offline = offlineRes.data || [];
-      const rankings = calculateWorkloadRanking(mobs, users as any, offline);
+      const rankings = calculateWorkloadRanking(mobs, users as any, offline, weekStartDate, weekEndDate);
       setWorkloadRankings(rankings.slice(0, 5));
 
     } catch (error) {
@@ -807,17 +807,17 @@ const Dashboard = () => {
                         {idx + 1}. {rank.name}
                         {rank.isOffline && <span className="ml-1 text-[9px] text-amber-500 font-normal border border-amber-500/30 px-1 rounded-sm bg-amber-500/10">미가입</span>}
                       </span>
-                      <span className="text-[10px] text-slate-400">현재 <span className="font-bold text-white">{rank.currentConcurrentProjects}</span>개 투입중</span>
+                      <span className="text-[10px] text-slate-400">이번주 <span className="font-bold text-white">{rank.cumulativeHours}</span> H</span>
                     </div>
                     
-                    {/* Progress Bar (Visualizing workload against a max threshold say 5) */}
+                    {/* Progress Bar (Visualizing workload against a max threshold say 40) */}
                     <div className="w-full bg-slate-700/50 rounded-full h-1.5 mt-0.5">
                       <div 
-                        className={`h-1.5 rounded-full ${rank.currentConcurrentProjects > 2 ? 'bg-rose-500' : rank.currentConcurrentProjects > 1 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                        style={{ width: `${Math.min((rank.currentConcurrentProjects / 5) * 100, 100)}%` }}
+                        className={`h-1.5 rounded-full ${rank.cumulativeHours >= 40 ? 'bg-rose-500' : rank.cumulativeHours >= 20 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min((rank.cumulativeHours / 40) * 100, 100)}%` }}
                       ></div>
                     </div>
-                    <p className="text-[9px] text-slate-500 mt-1">누적 최대 병목: {rank.maxConcurrentProjects}회 중복</p>
+                    <p className="text-[9px] text-slate-500 mt-1">현재 동시 투입: {rank.currentConcurrentProjects}개 프로젝트</p>
                   </div>
                 </div>
               ))
@@ -825,7 +825,7 @@ const Dashboard = () => {
             
             <div className="mt-4 pt-3 border-t border-slate-800">
               <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-                현재 일자를 기준으로 <br/> 동시 투입된 프로젝트가 많은 순서입니다.
+                이번 주(월~금)를 기준으로 <br/> 누적 투입 시간(M/H)이 많은 순서입니다.
               </p>
             </div>
           </div>
