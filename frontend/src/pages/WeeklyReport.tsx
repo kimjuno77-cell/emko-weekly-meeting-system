@@ -50,11 +50,11 @@ const WeeklyReport = () => {
       setLoading(true);
       
       const updates = await getWeeklyUpdatesByWeek(weekStartDateStr);
-      setWeeklyUpdates(updates);
+      setWeeklyUpdates(updates.filter(u => u.status !== 'draft'));
 
       const prevWeekStartStr = getPrevWeekDates(weekStartDateStr).weekStartDate;
       const prevUpdates = await getWeeklyUpdatesByWeek(prevWeekStartStr);
-      setPrevWeeklyUpdates(prevUpdates);
+      setPrevWeeklyUpdates(prevUpdates.filter(u => u.status !== 'draft'));
 
       const teamsList = await getAllTeams();
       setTeams(teamsList);
@@ -364,7 +364,7 @@ const WeeklyReport = () => {
             <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 border-l-4 border-slate-900 pl-2">Ⅳ. 팀 / TF팀 주간업무 상세 사항</h2>
             <div className="space-y-8">
               {teams.map((team) => {
-                const teamUpdates = weeklyUpdates.filter((u) => u.team_id === team.id);
+                const teamUpdates = weeklyUpdates.filter((u) => u.team_id === team.id && u.status !== 'draft');
 
                 if (teamUpdates.length === 0) {
                   return (
@@ -386,7 +386,15 @@ const WeeklyReport = () => {
                   const progressList = teamTasks.filter((t) => t.task_type === 'progress');
                   const issueList = teamTasks.filter((t) => t.task_type === 'issue');
                   const planList = teamTasks.filter((t) => t.task_type === 'plan');
-                  const titleSuffix = update.project ? ` - ${update.project.name}` : '';
+                  
+                  // 일반 팀(이름이 '팀'으로 끝나는 경우)인지 확인
+                  const isCommonTeam = team.name.endsWith('팀');
+                  // 일반 팀이고, 프로젝트가 배정되어 있으며, 프로젝트 이름이 팀 이름과 다를 때만 꼬리표(Suffix)를 붙임.
+                  // TF팀(프로젝트 전담팀)이 다른 프로젝트와 연결되어 있더라도 꼬리표를 생략하여 "프로젝트-프로젝트" 연결을 방지.
+                  const titleSuffix = (isCommonTeam && update.project && update.project.name !== team.name) 
+                    ? ` - ${update.project.name}` 
+                    : '';
+                    
                   const prevUpdate = prevWeeklyUpdates.find((u) => u.team_id === team.id && u.project_id === update.project_id);
                   const prevTasks = prevUpdate?.tasks || [];
                   const prevPlanList = prevTasks.filter((t) => t.task_type === 'plan');
