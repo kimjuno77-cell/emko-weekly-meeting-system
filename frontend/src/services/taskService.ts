@@ -140,11 +140,35 @@ export const updateTask = async (
         console.error('작업 항목 수정 재시도 실패:', retryErr);
         throw new Error(retryErr.message || '작업 항목을 수정하는데 실패했습니다.');
       }
-      return retryData;
+      data = retryData;
+    } else {
+      console.error('작업 항목 수정 실패:', error);
+      throw new Error(error.message || '작업 항목을 수정하는데 실패했습니다.');
     }
+  }
 
-    console.error('작업 항목 수정 실패:', error);
-    throw new Error(error.message || '작업 항목을 수정하는데 실패했습니다.');
+  // Pending 연동 업데이트 (상태 변경 시)
+  if (data && updates.status) {
+    let pendingStatus = 'pending';
+    if (updates.status === 'in_progress') pendingStatus = 'in_progress';
+    else if (updates.status === 'completed') pendingStatus = 'completed';
+    else if (updates.status === 'blocked') pendingStatus = 'waiting';
+    else if (updates.status === 'cancelled') pendingStatus = 'cancelled';
+
+    const isCompleted = updates.status === 'completed';
+    
+    // 비동기로 안전하게 Pending 항목 업데이트 실행 (실패해도 Task 업데이트는 성공 반환)
+    supabase
+      .from('pending_items')
+      .update({
+        status: pendingStatus,
+        is_completed: isCompleted,
+        completed_date: isCompleted ? new Date().toISOString() : null
+      })
+      .eq('related_task_id', taskId)
+      .then(({ error }) => {
+        if (error) console.error('Pending 항목 동기화 실패:', error);
+      });
   }
   
   return data;

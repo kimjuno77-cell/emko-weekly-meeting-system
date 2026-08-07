@@ -389,13 +389,19 @@ const TeamUpdate = () => {
         
         if (isPendingTrack && newTask && selectedTeamId) {
           try {
+            let initialPendingStatus = 'pending';
+            if (taskStatus === 'in_progress') initialPendingStatus = 'in_progress';
+            else if (taskStatus === 'completed') initialPendingStatus = 'completed';
+            else if (taskStatus === 'blocked') initialPendingStatus = 'waiting';
+            else if (taskStatus === 'cancelled') initialPendingStatus = 'cancelled';
+
             await createPendingItem({
               team_id: selectedTeamId,
               title: taskTitle.trim(),
               description: taskDesc.trim(),
               assigned_to: taskAssigneeId || undefined,
               assignee_name: finalAssigneeName,
-              status: 'pending',
+              status: initialPendingStatus as any,
               priority: taskPriority,
               related_task_id: newTask.id,
               notes: '주간 업무 회의록에서 자동 연동됨'
