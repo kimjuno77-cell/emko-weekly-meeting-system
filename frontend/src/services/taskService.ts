@@ -108,7 +108,7 @@ export const updateTask = async (
     assigned_to: updates.assigned_to ? updates.assigned_to : null,
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('tasks')
     .update(sanitizedUpdates)
     .eq('id', taskId)
