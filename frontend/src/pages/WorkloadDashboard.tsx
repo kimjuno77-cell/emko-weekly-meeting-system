@@ -118,9 +118,7 @@ export default function WorkloadDashboard() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">이름 (이메일)</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">본 소속 팀</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">겸직(팀)</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">투입(프로젝트)</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">배정된 팀 및 프로젝트</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">워크로드 개수</th>
               </tr>
             </thead>
@@ -132,45 +130,46 @@ export default function WorkloadDashboard() {
                     <div className="text-xs text-slate-500">{wl.email}</div>
                   </td>
                   <td className="px-6 py-4">
-                    {wl.primary_team_name ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        {wl.primary_team_name}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-400 font-medium">미지정</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-2">
-                      {wl.assigned_teams.length === 0 && <span className="text-xs text-slate-300">-</span>}
+                      {/* Primary Team */}
+                      {wl.primary_team_name && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          {wl.primary_team_name} (본 소속)
+                        </span>
+                      )}
+
+                      {/* Assigned Teams */}
                       {wl.assigned_teams.map(team => (
-                        <div key={team.id} className="group/tag inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">
+                        <div key={`team-${team.id}`} className="group/tag inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">
                           {team.name}
                           <button 
                             onClick={() => handleRemove(wl.user_id, team.id, 'team')}
                             className="ml-1 text-sky-400 hover:text-rose-500 opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                            title="배정 해제"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
                       ))}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-2">
-                      {wl.assigned_projects.length === 0 && <span className="text-xs text-slate-300">-</span>}
+
+                      {/* Assigned Projects */}
                       {wl.assigned_projects.map(proj => (
-                        <div key={proj.id} className="group/tag inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <div key={`proj-${proj.id}`} className="group/tag inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
                           <Briefcase className="w-3 h-3 text-indigo-400" />
                           {proj.name}
                           <button 
                             onClick={() => handleRemove(wl.user_id, proj.id, 'project')}
                             className="ml-1 text-indigo-400 hover:text-rose-500 opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                            title="투입 해제"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
                       ))}
+
+                      {(!wl.primary_team_name && wl.assigned_teams.length === 0 && wl.assigned_projects.length === 0) && (
+                        <span className="text-xs text-slate-300">-</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">
@@ -189,7 +188,7 @@ export default function WorkloadDashboard() {
               ))}
               {workloads.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500 font-medium">
+                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500 font-medium">
                     사용자 데이터가 없습니다.
                   </td>
                 </tr>
