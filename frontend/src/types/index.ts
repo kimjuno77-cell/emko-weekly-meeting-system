@@ -77,7 +77,8 @@ export interface ProjectPhase {
 export interface ProjectMobilization {
   id: string;
   project_id: string;
-  user_id: string;
+  user_id: string | null;
+  offline_personnel_id: string | null;
   phase_id: string | null;
   role_description: string | null;
   start_date: string;
@@ -89,6 +90,7 @@ export interface ProjectMobilization {
   // 관계 데이터
   project?: Project;
   user?: UserProfile;
+  offline_personnel?: OfflinePersonnel;
   phase?: ProjectPhase;
 }
 
@@ -122,6 +124,20 @@ export interface Comment {
   author?: UserProfile;
 }
 
+
+// 오프라인 인력 (미가입 팀원)
+export interface OfflinePersonnel {
+  id: string;
+  full_name: string;
+  team_id: string | null;
+  role: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  
+  // 관계 데이터
+  team?: Team;
+}
 
 // 사용자 프로필
 export interface UserProfile {

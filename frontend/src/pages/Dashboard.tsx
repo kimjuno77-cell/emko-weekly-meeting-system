@@ -65,7 +65,7 @@ const Dashboard = () => {
         getHighPriorityPendingItems(),
         supabase.from('projects').select('*').order('name', { ascending: true }),
         supabase.from('project_phases').select('*').order('display_order', { ascending: true }),
-        supabase.from('project_mobilizations').select('*, user:user_profiles!project_mobilizations_user_id_fkey(full_name), project:projects(name)').order('start_date', { ascending: true }),
+        supabase.from('project_mobilizations').select('*, user:user_profiles!project_mobilizations_user_id_fkey(full_name), offline:offline_personnel!project_mobilizations_offline_personnel_id_fkey(full_name), project:projects(name)').order('start_date', { ascending: true }),
         getWeeklyUpdatesByWeek(weekStartDate),
       ]);
       
@@ -300,7 +300,7 @@ const Dashboard = () => {
                       <tr key={mob.id} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="py-3 px-4 text-sm font-medium text-slate-900">{mob.project?.name || '-'}</td>
                         <td className="py-3 px-4 text-sm text-slate-600">
-                          {mob.user?.full_name || '미지정'} 
+                          {mob.user?.full_name || mob.offline?.full_name || '미지정'} 
                           {mob.role_description && <span className="text-xs text-slate-400 ml-1">({mob.role_description})</span>}
                         </td>
                         <td className="py-3 px-4 text-sm text-slate-500">

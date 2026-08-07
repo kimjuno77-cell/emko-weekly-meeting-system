@@ -67,6 +67,14 @@ export const memberManagementService = {
 
     if (userError) throw userError;
 
+    // 1.5) 모든 오프라인 인력 조회
+    const { data: offlineUsers, error: offlineError } = await supabase
+      .from('offline_personnel')
+      .select('id, full_name, team_id, team:teams(name)')
+      .order('full_name', { ascending: true });
+
+    if (offlineError) throw offlineError;
+
     // 2) 모든 팀 맵핑 데이터 조회
     const { data: teamMembers, error: tmError } = await supabase
       .from('team_members')
@@ -81,14 +89,14 @@ export const memberManagementService = {
 
     if (pmError) throw pmError;
 
-    // 4) 투입 계획 (M-PLAN) 데이터 조회
+    // 4) 투입 계획 (M-PLAN) 데이터 조회 (일반 사용자 + 오프라인 인원)
     const { data: mobilizations, error: mobError } = await supabase
       .from('project_mobilizations')
-      .select('user_id, project:projects(id, name, status)');
+      .select('user_id, offline_personnel_id, project:projects(id, name, status)');
 
     if (mobError) throw mobError;
 
-    // 5) 데이터 조합
+    // 5) 일반 사용자 워크로드 계산
     const workloads: UserWorkload[] = users.map((user: any) => {
       // 본 소속(Primary Team)도 워크로드에 포함하는지? -> 일단 별도 표시용으로 사용
       const userTeamMembers = teamMembers.filter((tm) => tm.user_id === user.id);
@@ -114,11 +122,34 @@ export const memberManagementService = {
         primary_team_name: user.team?.name || null,
         assigned_teams: assignedTeams,
         assigned_projects: assignedProjects,
-        total_workload_count: assignedTeams.length + assignedProjects.length
+        total_workload_count: assignedTeams.length + assignedProjects.length,
       };
     });
 
-    return workloads;
+    // 6) 오프라인 인력 워크로드 계산 및 추가
+    const offlineWorkloads: UserWorkload[] = offlineUsers.map((user: any) => {
+      const userMobilizations = mobilizations.filter((m) => m.offline_personnel_id === user.id);
+
+      const projectMap = new Map();
+      userMobilizations.forEach((m) => {
+        if (m.project) {
+          projectMap.set((m.project as any).id, m.project);
+        }
+      });
+      const assignedProjects = Array.from(projectMap.values()) as Project[];
+
+      return {
+        user_id: user.id, // 식별용으로 id 그대로 사용
+        full_name: user.full_name || '이름 없음',
+        email: '(미가입 인력)', // 이메일이 없으므로 표시용 텍스트 반환
+        primary_team_name: user.team?.name || null,
+        assigned_teams: [], // 오프라인 인력은 team_members에 등록되지 않으므로 비움
+        assigned_projects: assignedProjects,
+        total_workload_count: assignedProjects.length,
+      };
+    });
+
+    return [...workloads, ...offlineWorkloads];
   },
 
   // 6. 모든 활성 사용자 목록 가져오기 (드롭다운용)

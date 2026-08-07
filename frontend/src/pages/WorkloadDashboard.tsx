@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, UserPlus, Briefcase, X, Plus, AlertTriangle } from 'lucide-react';
 import { memberManagementService } from '@/services/memberManagementService';
+import { personnelService } from '@/services/personnelService';
 import { UserWorkload, UserProfile, Team, Project } from '@/types';
 import toast from 'react-hot-toast';
 
@@ -11,12 +12,18 @@ export default function WorkloadDashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 모달 상태
+  // 배정 모달 상태
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [assignType, setAssignType] = useState<'team' | 'project'>('project');
   const [selectedEntityId, setSelectedEntityId] = useState<string>('');
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // 미가입 인력 등록 모달 상태
+  const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
+  const [offlineName, setOfflineName] = useState('');
+  const [offlineTeamId, setOfflineTeamId] = useState('');
+  const [isAddingOffline, setIsAddingOffline] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -83,6 +90,32 @@ export default function WorkloadDashboard() {
     }
   };
 
+  const handleAddOfflinePersonnel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!offlineName.trim()) {
+      toast.error('이름을 입력해주세요.');
+      return;
+    }
+    
+    setIsAddingOffline(true);
+    try {
+      await personnelService.createOfflinePersonnel({
+        full_name: offlineName,
+        team_id: offlineTeamId || null,
+        role: 'member'
+      });
+      toast.success('미가입 인력이 등록되었습니다.');
+      setIsOfflineModalOpen(false);
+      setOfflineName('');
+      setOfflineTeamId('');
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || '인력 등록에 실패했습니다.');
+    } finally {
+      setIsAddingOffline(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -103,13 +136,22 @@ export default function WorkloadDashboard() {
             인원별 다중 소속(팀/프로젝트) 현황과 워크로드를 관리합니다.
           </p>
         </div>
-        <button
-          onClick={() => setIsAssignModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition shadow-sm"
-        >
-          <UserPlus className="w-4 h-4" />
-          인원 배정하기
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsOfflineModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold border border-slate-200 rounded-xl transition shadow-sm"
+          >
+            <UserPlus className="w-4 h-4" />
+            미가입 인력 추가
+          </button>
+          <button
+            onClick={() => setIsAssignModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition shadow-sm"
+          >
+            <Briefcase className="w-4 h-4" />
+            다중 소속 배정
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -256,19 +298,93 @@ export default function WorkloadDashboard() {
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button
+                  onClick={() => setIsAssignModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleAssign}
+                  disabled={isAssigning}
+                  className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition shadow-md shadow-sky-500/20 disabled:opacity-50"
+                >
+                  {isAssigning ? '배정 중...' : '배정 완료'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 미가입 인력 등록 모달 */}
+      {isOfflineModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800">
+                미가입 인력 추가
+              </h2>
+              <button 
+                onClick={() => setIsOfflineModalOpen(false)}
+                className="p-1 hover:bg-slate-200 rounded-lg transition text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <form id="offlineForm" onSubmit={handleAddOfflinePersonnel} className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex gap-3 text-amber-800 text-sm mb-4">
+                  <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                  <p>이곳에서 추가한 인력은 시스템 로그인은 불가능하며, 프로젝트 인력 투입(M-Plan) 배정 목적으로만 사용됩니다.</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">이름 (필수)</label>
+                  <input
+                    type="text"
+                    value={offlineName}
+                    onChange={(e) => setOfflineName(e.target.value)}
+                    placeholder="홍길동"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">소속 팀 (선택)</label>
+                  <select
+                    value={offlineTeamId}
+                    onChange={(e) => setOfflineTeamId(e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                  >
+                    <option value="">소속 없음</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </form>
+            </div>
+            
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
               <button
-                onClick={() => setIsAssignModalOpen(false)}
-                className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+                type="button"
+                onClick={() => setIsOfflineModalOpen(false)}
+                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition"
+                disabled={isAddingOffline}
               >
                 취소
               </button>
               <button
-                onClick={handleAssign}
-                disabled={isAssigning}
-                className="px-4 py-2 text-sm font-bold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition flex items-center gap-2 disabled:opacity-50"
+                type="submit"
+                form="offlineForm"
+                disabled={isAddingOffline}
+                className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition shadow-md shadow-sky-500/20 disabled:opacity-50"
               >
-                {isAssigning ? '배정 중...' : <><Plus className="w-4 h-4" /> 배정하기</>}
+                {isAddingOffline ? '등록 중...' : '등록 완료'}
               </button>
             </div>
           </div>

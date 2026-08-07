@@ -5,12 +5,14 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
 import { Plus, X, Calendar, Edit2, Trash2 } from 'lucide-react';
 
+import { personnelService } from '../services/personnelService';
+
 const DEFAULT_PHASES = ['설계', '구매', '제작', '검사', '설치', '시운전'];
 
 const ProjectManagement: React.FC = () => {
   const { userProfile } = useAuthStore();
   const [projects, setProjects] = useState<(Project & { phases: (ProjectPhase & { mobilizations: any[] })[] })[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]); // 합쳐진 사용자(정식+오프라인) 목록
   const [loading, setLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,8 +45,13 @@ const ProjectManagement: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data } = await supabase.from('user_profiles').select('*').eq('is_active', true);
-      setUsers(data || []);
+      const { users, offline } = await personnelService.getAllPersonnel();
+      // 두 리스트를 합침
+      const combined = [
+        ...users.map(u => ({ ...u, isOffline: false })),
+        ...offline.map(o => ({ ...o, isOffline: true, email: '(미가입 인력)' }))
+      ];
+      setUsers(combined);
     } catch (e) {
       console.error(e);
     }
@@ -114,7 +121,8 @@ const ProjectManagement: React.FC = () => {
     setPhaseActualEnd(phase.actual_end_date || '');
     setPhaseStatus(phase.status as any);
     setPhasePersonnel(phase.required_personnel || 0);
-    const existingUsers = phase.mobilizations?.map((m: any) => m.user_id) || [];
+    // 기존 유저 아이디와 오프라인 인력 아이디를 합쳐서 세팅
+    const existingUsers = phase.mobilizations?.map((m: any) => m.user_id || m.offline_personnel_id).filter(Boolean) || [];
     setSelectedPhaseUsers(existingUsers);
     setOriginalPhaseUsers(existingUsers);
     setIsPhaseModalOpen(true);
@@ -145,22 +153,30 @@ const ProjectManagement: React.FC = () => {
       const removedUsers = originalPhaseUsers.filter(u => !selectedPhaseUsers.includes(u));
 
       if (removedUsers.length > 0) {
+        // user_id 에 해당하거나 offline_personnel_id 에 해당하는 데이터를 모두 삭제
         await supabase.from('project_mobilizations')
           .delete()
           .eq('phase_id', editingPhase.id)
-          .in('user_id', removedUsers);
+          .or(`user_id.in.(${removedUsers.join(',')}),offline_personnel_id.in.(${removedUsers.join(',')})`);
       }
 
       if (addedUsers.length > 0) {
-        const plansToInsert = addedUsers.map(userId => ({
-          project_id: editingPhase.project_id,
-          user_id: userId,
-          phase_id: editingPhase.id,
-          role_description: editingPhase.phase_name + ' 투입 (자동 배정)',
-          start_date: phasePlannedStart || new Date().toISOString().split('T')[0],
-          end_date: phasePlannedEnd || new Date().toISOString().split('T')[0],
-          created_by: userProfile?.id,
-        }));
+        const plansToInsert = addedUsers.map(id => {
+          // 사용자가 오프라인 인력인지 확인
+          const userObj = users.find(u => u.id === id);
+          const isOffline = userObj?.isOffline;
+
+          return {
+            project_id: editingPhase.project_id,
+            user_id: isOffline ? null : id,
+            offline_personnel_id: isOffline ? id : null,
+            phase_id: editingPhase.id,
+            role_description: editingPhase.phase_name + ' 투입 (자동 배정)',
+            start_date: phasePlannedStart || new Date().toISOString().split('T')[0],
+            end_date: phasePlannedEnd || new Date().toISOString().split('T')[0],
+            created_by: userProfile?.id,
+          };
+        });
         await supabase.from('project_mobilizations').insert(plansToInsert);
       }
 
