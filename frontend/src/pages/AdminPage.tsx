@@ -235,6 +235,11 @@ const AdminPage = () => {
       return;
     }
 
+    if (!teamName.trim().endsWith('팀')) {
+      toast.error('팀 이름은 반드시 "팀"으로 끝나야 합니다. (예: 기술품질팀). 프로젝트/TF팀은 [프로젝트 관리] 메뉴를 이용해 주세요.');
+      return;
+    }
+
     try {
       if (editingTeam) {
         await updateTeam(editingTeam.id, {
@@ -608,16 +613,18 @@ const AdminPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-indigo-500" /> 등록된 조직 (팀 / TF팀) 목록 ({teams.length}개)
+                <Building2 className="h-5 w-5 text-indigo-500" /> 등록된 실제 부서(팀) 목록 ({teams.filter(t => t.name.endsWith('팀')).length}개)
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                주간 회의 보고서 작성 및 회원 가입에 사용되는 팀/TF팀 명칭과 표시 순서를 수정하거나 새로 추가합니다.
+                주간 회의 보고서 작성 및 회원 가입에 사용되는 <b>실제 부서(팀)</b> 명칭만 관리합니다. 
+                <br />
+                <span className="text-rose-500 font-semibold">※ "팀"으로 끝나지 않는 프로젝트 및 TF조직은 [프로젝트 현황 및 스케줄 관리] 메뉴에서 추가/수정해 주세요. (자동 연동됨)</span>
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {teams.map((team) => {
+            {teams.filter(t => t.name.endsWith('팀')).map((team) => {
               const memberCount = users.filter((u) => u.team_id === team.id).length;
               return (
                 <div
