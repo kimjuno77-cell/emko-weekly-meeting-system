@@ -173,13 +173,6 @@ export default function WorkloadDashboard() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-2">
-                      {/* Primary Team */}
-                      {wl.primary_team_name && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                          {wl.primary_team_name} (본 소속)
-                        </span>
-                      )}
-
                       {/* Assigned Teams */}
                       {wl.assigned_teams.map(team => (
                         <div key={`team-${team.id}`} className="group/tag inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">
@@ -209,7 +202,7 @@ export default function WorkloadDashboard() {
                         </div>
                       ))}
 
-                      {(!wl.primary_team_name && wl.assigned_teams.length === 0 && wl.assigned_projects.length === 0) && (
+                      {(wl.assigned_teams.length === 0 && wl.assigned_projects.length === 0) && (
                         <span className="text-xs text-slate-300">-</span>
                       )}
                     </div>
@@ -260,8 +253,8 @@ export default function WorkloadDashboard() {
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
                 >
                   <option value="">-- 사용자 선택 --</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.full_name} ({u.team?.name || '소속없음'})</option>
+                  {workloads.map(wl => (
+                    <option key={wl.user_id} value={wl.user_id}>{wl.full_name} ({wl.primary_team_name || '소속없음'})</option>
                   ))}
                 </select>
               </div>

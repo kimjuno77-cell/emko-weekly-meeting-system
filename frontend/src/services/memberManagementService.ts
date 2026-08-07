@@ -5,10 +5,20 @@ import { UserWorkload, Team, Project, UserProfile } from '@/types';
 
 export const memberManagementService = {
   // 1. 특정 사용자를 팀에 추가
-  async addTeamMember(teamId: string, userId: string, role: string = 'member') {
+  async addTeamMember(teamId: string, targetId: string, role: string = 'member') {
+    const isOffline = targetId.startsWith('offline_');
+    const actualId = isOffline ? targetId.replace('offline_', '') : targetId;
+    
+    const insertData: any = { team_id: teamId, role };
+    if (isOffline) {
+      insertData.offline_personnel_id = actualId;
+    } else {
+      insertData.user_id = actualId;
+    }
+
     const { data, error } = await supabase
       .from('team_members')
-      .insert({ team_id: teamId, user_id: userId, role })
+      .insert(insertData)
       .select()
       .single();
 
@@ -20,21 +30,37 @@ export const memberManagementService = {
   },
 
   // 2. 특정 사용자를 팀에서 제거
-  async removeTeamMember(teamId: string, userId: string) {
-    const { error } = await supabase
-      .from('team_members')
-      .delete()
-      .eq('team_id', teamId)
-      .eq('user_id', userId);
+  async removeTeamMember(teamId: string, targetId: string) {
+    const isOffline = targetId.startsWith('offline_');
+    const actualId = isOffline ? targetId.replace('offline_', '') : targetId;
+
+    let query = supabase.from('team_members').delete().eq('team_id', teamId);
+    if (isOffline) {
+      query = query.eq('offline_personnel_id', actualId);
+    } else {
+      query = query.eq('user_id', actualId);
+    }
+
+    const { error } = await query;
 
     if (error) throw error;
   },
 
   // 3. 특정 사용자를 프로젝트에 추가
-  async addProjectMember(projectId: string, userId: string, role: string = 'member') {
+  async addProjectMember(projectId: string, targetId: string, role: string = 'member') {
+    const isOffline = targetId.startsWith('offline_');
+    const actualId = isOffline ? targetId.replace('offline_', '') : targetId;
+
+    const insertData: any = { project_id: projectId, role };
+    if (isOffline) {
+      insertData.offline_personnel_id = actualId;
+    } else {
+      insertData.user_id = actualId;
+    }
+
     const { data, error } = await supabase
       .from('project_members')
-      .insert({ project_id: projectId, user_id: userId, role })
+      .insert(insertData)
       .select()
       .single();
 
@@ -46,12 +72,18 @@ export const memberManagementService = {
   },
 
   // 4. 특정 사용자를 프로젝트에서 제거
-  async removeProjectMember(projectId: string, userId: string) {
-    const { error } = await supabase
-      .from('project_members')
-      .delete()
-      .eq('project_id', projectId)
-      .eq('user_id', userId);
+  async removeProjectMember(projectId: string, targetId: string) {
+    const isOffline = targetId.startsWith('offline_');
+    const actualId = isOffline ? targetId.replace('offline_', '') : targetId;
+
+    let query = supabase.from('project_members').delete().eq('project_id', projectId);
+    if (isOffline) {
+      query = query.eq('offline_personnel_id', actualId);
+    } else {
+      query = query.eq('user_id', actualId);
+    }
+
+    const { error } = await query;
 
     if (error) throw error;
   },
@@ -78,14 +110,14 @@ export const memberManagementService = {
     // 2) 모든 팀 맵핑 데이터 조회
     const { data: teamMembers, error: tmError } = await supabase
       .from('team_members')
-      .select('user_id, team:teams(id, name)');
+      .select('user_id, offline_personnel_id, team:teams(id, name)');
 
     if (tmError) throw tmError;
 
     // 3) 모든 프로젝트 맵핑 데이터 조회
     const { data: projectMembers, error: pmError } = await supabase
       .from('project_members')
-      .select('user_id, project:projects(id, name, status)');
+      .select('user_id, offline_personnel_id, project:projects(id, name, status)');
 
     if (pmError) throw pmError;
 
@@ -128,9 +160,18 @@ export const memberManagementService = {
 
     // 6) 오프라인 인력 워크로드 계산 및 추가
     const offlineWorkloads: UserWorkload[] = offlineUsers.map((user: any) => {
+      const userTeamMembers = teamMembers.filter((tm) => tm.offline_personnel_id === user.id);
+      const userProjectMembers = projectMembers.filter((pm) => pm.offline_personnel_id === user.id);
       const userMobilizations = mobilizations.filter((m) => m.offline_personnel_id === user.id);
 
+      const assignedTeams = userTeamMembers.map((tm) => tm.team) as unknown as Team[];
       const projectMap = new Map();
+      
+      userProjectMembers.forEach((pm) => {
+        if (pm.project) {
+          projectMap.set((pm.project as any).id, pm.project);
+        }
+      });
       userMobilizations.forEach((m) => {
         if (m.project) {
           projectMap.set((m.project as any).id, m.project);
@@ -139,13 +180,13 @@ export const memberManagementService = {
       const assignedProjects = Array.from(projectMap.values()) as Project[];
 
       return {
-        user_id: user.id, // 식별용으로 id 그대로 사용
+        user_id: `offline_${user.id}`, // 식별용으로 접두어 추가
         full_name: user.full_name || '이름 없음',
-        email: '(미가입 인력)', // 이메일이 없으므로 표시용 텍스트 반환
+        email: '(미가입 인력)',
         primary_team_name: user.team?.name || null,
-        assigned_teams: [], // 오프라인 인력은 team_members에 등록되지 않으므로 비움
+        assigned_teams: assignedTeams,
         assigned_projects: assignedProjects,
-        total_workload_count: assignedProjects.length,
+        total_workload_count: assignedTeams.length + assignedProjects.length,
       };
     });
 
