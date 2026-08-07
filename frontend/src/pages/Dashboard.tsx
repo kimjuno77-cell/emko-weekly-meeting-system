@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import YearlyPersonModal from '@/components/YearlyPersonModal';
+import YearlyProjectModal from '@/components/YearlyProjectModal';
 import { supabase } from '@/lib/supabase';
 import {
   Users,
@@ -8,7 +10,10 @@ import {
   TrendingUp,
   ArrowRight,
   ClipboardList,
-  Activity
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  Calendar
 } from 'lucide-react';
 import { getAllTeams } from '@/services/teamService';
 import { getPendingStats, getHighPriorityPendingItems } from '@/services/pendingService';
@@ -34,6 +39,10 @@ const Dashboard = () => {
   const [workloadRankings, setWorkloadRankings] = useState<WorkloadRanking[]>([]);
   const [activeTab, setActiveTab] = useState<'mplan' | 'phase' | 'manhour'>('mplan');
   const [manHourView, setManHourView] = useState<'matrix' | 'monthly'>('matrix');
+  const [baseMonthOffset, setBaseMonthOffset] = useState<number>(0);
+  
+  const [selectedPersonForModal, setSelectedPersonForModal] = useState<{id: string, name: string} | null>(null);
+  const [selectedProjectForModal, setSelectedProjectForModal] = useState<{id: string, name: string} | null>(null);
   
   const { weekStartDate, weekEndDate } = getCurrentWeekDates();
 
@@ -84,6 +93,8 @@ const Dashboard = () => {
   // Monthly Aggregation for M-Plan
   const { monthHeaders, monthlyData } = useMemo(() => {
     const today = new Date();
+    today.setMonth(today.getMonth() + baseMonthOffset);
+    
     const headers: { label: string, year: number, month: number }[] = [];
     for (let i = 0; i < 6; i++) {
       const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
@@ -128,6 +139,7 @@ const Dashboard = () => {
     const rows = projects.filter(p => p.status === 'active').map(p => {
       const sets = dataMap.get(p.id)!;
       return {
+        projectId: p.id,
         projectName: p.name,
         counts: sets.map(s => s.size)
       };
@@ -137,7 +149,7 @@ const Dashboard = () => {
     rows.sort((a, b) => b.counts.reduce((sum, c) => sum + c, 0) - a.counts.reduce((sum, c) => sum + c, 0));
 
     return { monthHeaders: headers, monthlyData: rows };
-  }, [projects, mobilizations]);
+  }, [projects, mobilizations, baseMonthOffset]);
 
   // Monthly Aggregation for Phase Progress
   const phaseProgressData = useMemo(() => {
@@ -163,6 +175,7 @@ const Dashboard = () => {
       });
       
       return {
+        projectId: p.id,
         projectName: p.name,
         phasesList
       };
@@ -178,8 +191,8 @@ const Dashboard = () => {
     // Get active projects for columns
     const activeProjects = projects.filter(p => p.status === 'active');
     
-    // personId -> { name: string, isOffline: boolean, projectHours: Map<string, number>, total: number }
-    const personMap = new Map<string, { name: string, isOffline: boolean, projectHours: Map<string, number>, total: number }>();
+    // personId -> { id: string, name: string, isOffline: boolean, projectHours: Map<string, number>, total: number }
+    const personMap = new Map<string, { id: string, name: string, isOffline: boolean, projectHours: Map<string, number>, total: number }>();
 
     // Init personMap from mobilizations to get names
     mobilizations.forEach(mob => {
@@ -187,6 +200,7 @@ const Dashboard = () => {
       if (!pId) return;
       if (!personMap.has(pId)) {
         personMap.set(pId, {
+          id: pId,
           name: mob.user ? mob.user.full_name : (mob.offline ? mob.offline.full_name : '알 수 없음'),
           isOffline: !mob.user_id,
           projectHours: new Map(),
@@ -347,13 +361,13 @@ const Dashboard = () => {
     const personRows = Array.from(personDetails.entries()).map(([pId, details]) => {
       const months = personMonthly.map(monthMap => monthMap.get(pId) || 0);
       const total = months.reduce((a, b) => a + b, 0);
-      return { ...details, months, total };
+      return { id: pId, ...details, months, total };
     }).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
 
     const projectRows = Array.from(projectNames.entries()).map(([projId, name]) => {
       const months = projectMonthly.map(monthMap => monthMap.get(projId) || 0);
       const total = months.reduce((a, b) => a + b, 0);
-      return { name, months, total };
+      return { id: projId, name, months, total };
     }).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
 
     return { personRows, projectRows };
@@ -521,6 +535,36 @@ const Dashboard = () => {
                 <div className="text-[9px] text-slate-500 ml-2">* 평일(월~금) 기준 계산</div>
               </div>
             )}
+            
+            {/* Range Navigation - Visible on M-PLAN, PHASE, and M/H Monthly */}
+            {(activeTab === 'mplan' || activeTab === 'phase' || (activeTab === 'manhour' && manHourView === 'monthly')) && (
+              <div className="flex items-center space-x-1 ml-4 bg-slate-800 rounded px-1 py-0.5">
+                <button 
+                  onClick={() => setBaseMonthOffset(prev => prev - 1)}
+                  className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                  title="이전 달"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-[10px] font-medium text-slate-300 px-2 min-w-[70px] text-center">
+                  {monthHeaders.length > 0 ? `${monthHeaders[0].year}.${String(monthHeaders[0].month + 1).padStart(2, '0')} ~ ${monthHeaders[5].year}.${String(monthHeaders[5].month + 1).padStart(2, '0')}` : ''}
+                </span>
+                <button 
+                  onClick={() => setBaseMonthOffset(prev => prev + 1)}
+                  className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                  title="다음 달"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setBaseMonthOffset(0)}
+                  className="p-1 text-slate-500 hover:text-sky-400 ml-1 rounded transition-colors"
+                  title="이번 달로 초기화"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
           
           <div className="flex-1 overflow-auto rounded-md border border-slate-800 custom-scrollbar">
@@ -540,7 +584,7 @@ const Dashboard = () => {
                     <>
                       {manHourData.columns.map(p => (
                         <th key={p.id} className="py-2.5 px-2 text-center font-semibold text-slate-400 border-b border-slate-800 border-l border-slate-800/50 truncate max-w-[80px]" title={p.name}>
-                          {p.name}
+                          <button onClick={() => setSelectedProjectForModal({id: p.id, name: p.name})} className="hover:text-sky-400 hover:underline">{p.name}</button>
                         </th>
                       ))}
                     </>
@@ -560,8 +604,12 @@ const Dashboard = () => {
                     </tr>
                   ) : (
                     monthlyData.map(row => (
-                      <tr key={row.projectName} className="hover:bg-slate-800/30 transition">
-                        <td className="py-2 px-3 font-medium text-slate-300">{row.projectName}</td>
+                      <tr key={row.projectId} className="hover:bg-slate-800/30 transition">
+                        <td className="py-2 px-3 font-medium text-slate-300">
+                          <button onClick={() => setSelectedProjectForModal({id: row.projectId, name: row.projectName})} className="hover:text-sky-400 hover:underline text-left">
+                            {row.projectName}
+                          </button>
+                        </td>
                         {row.counts.map((c, i) => (
                           <td key={i} className="py-2 px-2 text-center border-l border-slate-800/50">
                             {c > 0 ? (
@@ -587,8 +635,12 @@ const Dashboard = () => {
                     </tr>
                   ) : (
                     phaseProgressData.map(row => (
-                      <tr key={row.projectName} className="hover:bg-slate-800/30 transition">
-                        <td className="py-2 px-3 font-medium text-slate-300">{row.projectName}</td>
+                      <tr key={row.projectId} className="hover:bg-slate-800/30 transition">
+                        <td className="py-2 px-3 font-medium text-slate-300">
+                          <button onClick={() => setSelectedProjectForModal({id: row.projectId, name: row.projectName})} className="hover:text-sky-400 hover:underline text-left">
+                            {row.projectName}
+                          </button>
+                        </td>
                         {row.phasesList.map((phText, i) => (
                           <td key={i} className="py-2 px-1 text-center border-l border-slate-800/50">
                             {phText ? (
@@ -614,9 +666,11 @@ const Dashboard = () => {
                     </tr>
                   ) : (
                     manHourData.rows.map(row => (
-                      <tr key={row.name} className="hover:bg-slate-800/30 transition">
+                      <tr key={row.id} className="hover:bg-slate-800/30 transition">
                         <td className="py-2 px-3 font-medium text-slate-300 flex items-center gap-1.5">
-                          {row.name}
+                          <button onClick={() => setSelectedPersonForModal({id: row.id, name: row.name})} className="hover:text-sky-400 hover:underline text-left">
+                            {row.name}
+                          </button>
                           {row.isOffline && <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded border border-amber-500/30">미가입</span>}
                         </td>
                         {manHourData.columns.map(p => {
@@ -647,9 +701,11 @@ const Dashboard = () => {
                   ) : (
                     <>
                       {manHourMonthlyData.personRows.map(row => (
-                        <tr key={row.name} className="hover:bg-slate-800/30 transition">
+                        <tr key={row.id} className="hover:bg-slate-800/30 transition">
                           <td className="py-2 px-3 font-medium text-slate-300 flex items-center gap-1.5">
-                            {row.name}
+                            <button onClick={() => setSelectedPersonForModal({id: row.id, name: row.name})} className="hover:text-sky-400 hover:underline text-left">
+                              {row.name}
+                            </button>
                             {row.isOffline && <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded border border-amber-500/30">미가입</span>}
                           </td>
                           {row.months.map((val, i) => (
@@ -676,9 +732,11 @@ const Dashboard = () => {
                         </td>
                       </tr>
                       {manHourMonthlyData.projectRows.map(row => (
-                        <tr key={row.name} className="hover:bg-slate-800/30 transition">
+                        <tr key={row.id} className="hover:bg-slate-800/30 transition">
                           <td className="py-2 px-3 font-medium text-slate-300">
-                            {row.name}
+                            <button onClick={() => setSelectedProjectForModal({id: row.id, name: row.name})} className="hover:text-sky-400 hover:underline text-left">
+                              {row.name}
+                            </button>
                           </td>
                           {row.months.map((val, i) => (
                             <td key={i} className="py-2 px-2 text-center border-l border-slate-800/50 font-mono text-[10px]">
@@ -774,6 +832,26 @@ const Dashboard = () => {
         </div>
 
       </div>
+      {selectedPersonForModal && (
+        <YearlyPersonModal
+          isOpen={!!selectedPersonForModal}
+          onClose={() => setSelectedPersonForModal(null)}
+          personId={selectedPersonForModal.id}
+          personName={selectedPersonForModal.name}
+          mobilizations={mobilizations}
+          projects={projects}
+        />
+      )}
+
+      {selectedProjectForModal && (
+        <YearlyProjectModal
+          isOpen={!!selectedProjectForModal}
+          onClose={() => setSelectedProjectForModal(null)}
+          projectId={selectedProjectForModal.id}
+          projectName={selectedProjectForModal.name}
+          mobilizations={mobilizations}
+        />
+      )}
     </div>
   );
 };
