@@ -172,7 +172,7 @@ const Dashboard = () => {
 
   // Man/Hour Aggregation
   const manHourData = useMemo(() => {
-    if (mobilizations.length === 0 || projects.length === 0) return { columns: [], rows: [] };
+    if (mobilizations.length === 0 || projects.length === 0) return { columns: [], rows: [], projectTotals: new Map<string, number>(), grandTotal: 0 };
 
     // Get active projects for columns
     const activeProjects = projects.filter(p => p.status === 'active');
@@ -204,7 +204,7 @@ const Dashboard = () => {
       if (e > maxTime) maxTime = e;
     });
 
-    if (minTime === Infinity) return { columns: activeProjects, rows: [] };
+    if (minTime === Infinity) return { columns: activeProjects, rows: [], projectTotals: new Map<string, number>(), grandTotal: 0 };
 
     const startDay = new Date(minTime);
     const endDay = new Date(maxTime);
@@ -258,7 +258,20 @@ const Dashboard = () => {
       .filter(p => p.total > 0) // only include if they have hours
       .sort((a, b) => b.total - a.total);
 
-    return { columns: activeProjects, rows };
+    // Calculate project totals
+    const projectTotals = new Map<string, number>();
+    activeProjects.forEach(p => projectTotals.set(p.id, 0));
+    let grandTotal = 0;
+    
+    rows.forEach(r => {
+      activeProjects.forEach(p => {
+        const val = r.projectHours.get(p.id) || 0;
+        projectTotals.set(p.id, projectTotals.get(p.id)! + val);
+      });
+      grandTotal += r.total;
+    });
+
+    return { columns: activeProjects, rows, projectTotals, grandTotal };
   }, [mobilizations, projects]);
 
   if (loading) {
@@ -525,6 +538,24 @@ const Dashboard = () => {
                   )
                 ) : null}
               </tbody>
+              {activeTab === 'manhour' && manHourData.rows.length > 0 && (
+                <tfoot className="bg-slate-900 sticky bottom-0 z-10 shadow-[0_-1px_0_rgba(30,41,59,1)]">
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold text-slate-300 text-right">TOTAL</td>
+                    {manHourData.columns.map(p => {
+                      const pTotal = manHourData.projectTotals.get(p.id) || 0;
+                      return (
+                        <td key={p.id} className="py-2.5 px-2 text-center border-l border-slate-800/50 font-mono font-bold text-sky-400 text-[10px]">
+                          {pTotal > 0 ? (Number.isInteger(pTotal) ? pTotal : pTotal.toFixed(1)) : '-'}
+                        </td>
+                      );
+                    })}
+                    <td className="py-2.5 px-3 text-center border-l border-slate-800/50 font-mono font-black text-emerald-400 text-[11px] bg-emerald-950/20">
+                      {Number.isInteger(manHourData.grandTotal) ? manHourData.grandTotal : manHourData.grandTotal.toFixed(1)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
