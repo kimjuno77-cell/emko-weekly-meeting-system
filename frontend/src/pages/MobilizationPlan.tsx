@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { ProjectMobilization, Project, ProjectPhase, UserProfile } from '../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
-import { Plus, X, Calendar, Briefcase, Trash2, Edit2 } from 'lucide-react';
+import { Plus, X, Calendar, Briefcase, Trash2, Edit2, LayoutList, BarChartHorizontal } from 'lucide-react';
+import GanttChart, { GanttItem, ViewMode } from '../components/GanttChart';
 
 const MobilizationPlan: React.FC = () => {
   const { userProfile } = useAuthStore();
@@ -17,6 +18,10 @@ const MobilizationPlan: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [editPlanId, setEditPlanId] = useState<string | null>(null);
+  
+  const [displayMode, setDisplayMode] = useState<'table' | 'gantt'>('gantt');
+  const [ganttViewMode, setGanttViewMode] = useState<ViewMode>('month');
+  const [ganttDate, setGanttDate] = useState<Date>(new Date());
 
   // Form State
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -198,6 +203,34 @@ const MobilizationPlan: React.FC = () => {
     setEndDate('');
   };
 
+  const ganttItems: GanttItem[] = React.useMemo(() => {
+    const userGroups = new Map<string, { user: any, tasks: any[] }>();
+    plans.forEach(plan => {
+      if (!plan.user_id) return;
+      if (!userGroups.has(plan.user_id)) {
+        userGroups.set(plan.user_id, {
+          user: (plan as any).user,
+          tasks: []
+        });
+      }
+      userGroups.get(plan.user_id)!.tasks.push({
+        id: plan.id,
+        name: ((plan as any).project?.name || '프로젝트') + ((plan as any).phase?.phase_name ? ` (${(plan as any).phase?.phase_name})` : ''),
+        startDate: plan.start_date,
+        endDate: plan.end_date,
+        colorClass: 'bg-indigo-500',
+        onClick: isAdmin ? () => openEditModal(plan) : undefined
+      });
+    });
+
+    return Array.from(userGroups.values()).map(group => ({
+      id: group.user?.email || Math.random().toString(),
+      label: group.user?.full_name || '알 수 없는 사용자',
+      subLabel: group.user?.email,
+      tasks: group.tasks
+    }));
+  }, [plans, isAdmin]);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -207,15 +240,33 @@ const MobilizationPlan: React.FC = () => {
             프로젝트별 전체 일정(설계~시운전)에 맞춰 어느 팀원이 언제 투입되는지 계획하고 관리합니다.
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={openCreateModal}
-            className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-indigo-500/20"
-          >
-            <Plus className="w-5 h-5" />
-            <span>투입 계획 추가</span>
-          </button>
-        )}
+        <div className="flex items-center space-x-3">
+          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setDisplayMode('table')}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${displayMode === 'table' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+              title="테이블 뷰"
+            >
+              <LayoutList className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setDisplayMode('gantt')}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${displayMode === 'gantt' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+              title="간트차트 뷰"
+            >
+              <BarChartHorizontal className="w-4 h-4" />
+            </button>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={openCreateModal}
+              className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-indigo-500/20"
+            >
+              <Plus className="w-5 h-5" />
+              <span>투입 계획 추가</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 min-h-[400px] overflow-hidden">
@@ -229,7 +280,7 @@ const MobilizationPlan: React.FC = () => {
             등록된 인력 투입 계획이 없습니다.
             {isAdmin && <p className="mt-2 text-sm text-slate-400">우측 상단의 버튼을 눌러 인력 투입을 계획해 보세요.</p>}
           </div>
-        ) : (
+        ) : displayMode === 'table' ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
@@ -310,6 +361,17 @@ const MobilizationPlan: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        ) : (
+          <div className="h-[600px]">
+            <GanttChart
+              items={ganttItems}
+              viewMode={ganttViewMode}
+              onViewModeChange={setGanttViewMode}
+              currentDate={ganttDate}
+              onDateChange={setGanttDate}
+              title="인원별 투입 현황 (M-PLAN)"
+            />
           </div>
         )}
       </div>

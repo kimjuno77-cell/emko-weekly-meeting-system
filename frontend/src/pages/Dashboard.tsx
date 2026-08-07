@@ -15,9 +15,10 @@ import {
 import { getAllTeams } from '@/services/teamService';
 import { getPendingStats, getHighPriorityPendingItems } from '@/services/pendingService';
 import { getCurrentWeekDates, getWeeklyUpdatesByWeek } from '@/services/weeklyUpdateService';
-import { Team, PendingItem, WeeklyUpdate } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
+import { Team, PendingItem, WeeklyUpdate } from '@/types';
 import toast from 'react-hot-toast';
+import GanttChart, { GanttItem, ViewMode } from '@/components/GanttChart';
 import {
   ResponsiveContainer,
   BarChart,
@@ -43,6 +44,10 @@ const Dashboard = () => {
   });
   const [highPriorityItems, setHighPriorityItems] = useState<PendingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectPhases, setProjectPhases] = useState<any[]>([]);
+  const [ganttViewMode, setGanttViewMode] = useState<ViewMode>('month');
+  const [ganttDate, setGanttDate] = useState<Date>(new Date());
+  
   const { weekStartDate, weekEndDate } = getCurrentWeekDates();
 
   useEffect(() => {
@@ -53,18 +58,20 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      const [teamsData, statsData, highPriorityData, { data: projectsData }, updatesData] = await Promise.all([
+      const [teamsData, statsData, highPriorityData, projectsRes, phasesRes, updatesData] = await Promise.all([
         getAllTeams(),
         getPendingStats(),
         getHighPriorityPendingItems(),
         supabase.from('projects').select('*').order('name', { ascending: true }),
+        supabase.from('project_phases').select('*').order('display_order', { ascending: true }),
         getWeeklyUpdatesByWeek(weekStartDate),
       ]);
       
       setTeams(teamsData);
       setPendingStats(statsData);
       setHighPriorityItems(highPriorityData);
-      setProjects(projectsData || []);
+      setProjects(projectsRes.data || []);
+      setProjectPhases(phasesRes.data || []);
       setCurrentUpdates(updatesData);
     } catch (error) {
       console.error('대시보드 데이터 로드 실패:', error);
@@ -115,6 +122,30 @@ const Dashboard = () => {
     { name: '대기 중', value: Math.max(0, pendingStats.total - pendingStats.in_progress - pendingStats.high_priority), color: '#eab308' },
     { name: '높은 우선순위', value: pendingStats.high_priority, color: '#ef4444' }
   ].filter(d => d.value > 0);
+
+  // 간트차트 데이터 가공
+  const ganttItems: GanttItem[] = projects.map(proj => {
+    const phases = projectPhases.filter(p => p.project_id === proj.id);
+    return {
+      id: proj.id,
+      label: proj.name,
+      subLabel: proj.status === 'completed' ? '완료' : proj.status === 'on_hold' ? '보류' : '진행 중',
+      tasks: phases.filter(p => p.planned_start_date).map(p => {
+        let colorClass = 'bg-sky-500';
+        if (p.status === 'completed') colorClass = 'bg-emerald-500';
+        else if (p.status === 'delayed') colorClass = 'bg-red-500';
+        else if (p.status === 'ahead') colorClass = 'bg-blue-600';
+        
+        return {
+          id: p.id,
+          name: p.phase_name,
+          startDate: p.planned_start_date,
+          endDate: p.planned_end_date,
+          colorClass
+        };
+      })
+    };
+  }).filter(item => item.tasks.length > 0); // 시작일이 있는 페이즈가 하나라도 있는 프로젝트만 표시
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -440,6 +471,18 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 프로젝트 간트 차트 영역 */}
+      <div className="h-[600px]">
+        <GanttChart
+          items={ganttItems}
+          viewMode={ganttViewMode}
+          onViewModeChange={setGanttViewMode}
+          currentDate={ganttDate}
+          onDateChange={setGanttDate}
+          title="프로젝트 스케줄 현황 (Gantt)"
+        />
       </div>
     </div>
   );

@@ -81,15 +81,32 @@ export const memberManagementService = {
 
     if (pmError) throw pmError;
 
-    // 4) 데이터 조합
+    // 4) 투입 계획 (M-PLAN) 데이터 조회
+    const { data: mobilizations, error: mobError } = await supabase
+      .from('project_mobilizations')
+      .select('user_id, project:projects(id, name, status)');
+
+    if (mobError) throw mobError;
+
+    // 5) 데이터 조합
     const workloads: UserWorkload[] = users.map((user: any) => {
       // 본 소속(Primary Team)도 워크로드에 포함하는지? -> 일단 별도 표시용으로 사용
       const userTeamMembers = teamMembers.filter((tm) => tm.user_id === user.id);
       const userProjectMembers = projectMembers.filter((pm) => pm.user_id === user.id);
+      const userMobilizations = mobilizations.filter((m) => m.user_id === user.id);
 
       const assignedTeams = userTeamMembers.map((tm) => tm.team) as unknown as Team[];
-      const assignedProjects = userProjectMembers.map((pm) => pm.project) as unknown as Project[];
+      // Deduplicate projects between project_members and project_mobilizations
+      const projectMap = new Map();
+      userProjectMembers.forEach(pm => {
+        if (pm.project) projectMap.set((pm.project as any).id, pm.project);
+      });
+      userMobilizations.forEach(m => {
+        if (m.project) projectMap.set((m.project as any).id, m.project);
+      });
+      const assignedProjects = Array.from(projectMap.values()) as unknown as Project[];
 
+      // 총 워크로드 수는 소속된 팀 개수 + 참여 중인 프로젝트(Phase 투입 포함) 수
       return {
         user_id: user.id,
         full_name: user.full_name || '이름 없음',

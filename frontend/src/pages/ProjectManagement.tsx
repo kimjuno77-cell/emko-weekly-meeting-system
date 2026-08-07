@@ -9,7 +9,8 @@ const DEFAULT_PHASES = ['설계', '구매', '제작', '검사', '설치', '시�
 
 const ProjectManagement: React.FC = () => {
   const { userProfile } = useAuthStore();
-  const [projects, setProjects] = useState<(Project & { phases: ProjectPhase[] })[]>([]);
+  const [projects, setProjects] = useState<(Project & { phases: (ProjectPhase & { mobilizations: any[] })[] })[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,6 +29,8 @@ const ProjectManagement: React.FC = () => {
   const [phaseActualEnd, setPhaseActualEnd] = useState('');
   const [phaseStatus, setPhaseStatus] = useState<'pending'|'in_progress'|'delayed'|'ahead'|'completed'>('pending');
   const [phasePersonnel, setPhasePersonnel] = useState(0);
+  const [selectedPhaseUsers, setSelectedPhaseUsers] = useState<string[]>([]);
+  const [originalPhaseUsers, setOriginalPhaseUsers] = useState<string[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -35,7 +38,17 @@ const ProjectManagement: React.FC = () => {
 
   useEffect(() => {
     fetchProjects();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const { data } = await supabase.from('user_profiles').select('*').eq('is_active', true);
+      setUsers(data || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchProjects = async () => {
     try {
@@ -54,9 +67,18 @@ const ProjectManagement: React.FC = () => {
 
       if (phasesError) throw phasesError;
 
+      const { data: mobilizationsData, error: mobError } = await supabase
+        .from('project_mobilizations')
+        .select('*');
+
+      if (mobError) throw mobError;
+
       const combined = projectsData.map(p => ({
         ...p,
-        phases: phasesData.filter(ph => ph.project_id === p.id)
+        phases: phasesData.filter(ph => ph.project_id === p.id).map(ph => ({
+          ...ph,
+          mobilizations: mobilizationsData.filter(m => m.phase_id === ph.id)
+        }))
       }));
 
       setProjects(combined);
@@ -84,7 +106,7 @@ const ProjectManagement: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const openPhaseModal = (phase: ProjectPhase) => {
+  const openPhaseModal = (phase: any) => {
     setEditingPhase(phase);
     setPhasePlannedStart(phase.planned_start_date || '');
     setPhasePlannedEnd(phase.planned_end_date || '');
@@ -92,6 +114,9 @@ const ProjectManagement: React.FC = () => {
     setPhaseActualEnd(phase.actual_end_date || '');
     setPhaseStatus(phase.status as any);
     setPhasePersonnel(phase.required_personnel || 0);
+    const existingUsers = phase.mobilizations?.map((m: any) => m.user_id) || [];
+    setSelectedPhaseUsers(existingUsers);
+    setOriginalPhaseUsers(existingUsers);
     setIsPhaseModalOpen(true);
   };
 
@@ -114,7 +139,32 @@ const ProjectManagement: React.FC = () => {
         .eq('id', editingPhase.id);
 
       if (error) throw error;
-      toast.success('스케줄(Phase)이 업데이트되었습니다.');
+
+      // Handle mobilization changes
+      const addedUsers = selectedPhaseUsers.filter(u => !originalPhaseUsers.includes(u));
+      const removedUsers = originalPhaseUsers.filter(u => !selectedPhaseUsers.includes(u));
+
+      if (removedUsers.length > 0) {
+        await supabase.from('project_mobilizations')
+          .delete()
+          .eq('phase_id', editingPhase.id)
+          .in('user_id', removedUsers);
+      }
+
+      if (addedUsers.length > 0) {
+        const plansToInsert = addedUsers.map(userId => ({
+          project_id: editingPhase.project_id,
+          user_id: userId,
+          phase_id: editingPhase.id,
+          role_description: editingPhase.phase_name + ' 투입 (자동 배정)',
+          start_date: phasePlannedStart || new Date().toISOString().split('T')[0],
+          end_date: phasePlannedEnd || new Date().toISOString().split('T')[0],
+          created_by: userProfile?.id,
+        }));
+        await supabase.from('project_mobilizations').insert(plansToInsert);
+      }
+
+      toast.success('스케줄(Phase) 및 투입 인원이 업데이트되었습니다.');
       setIsPhaseModalOpen(false);
       fetchProjects();
     } catch (error: any) {
@@ -334,8 +384,11 @@ const ProjectManagement: React.FC = () => {
                         <div className="text-xs font-medium mt-1">
                           상태: {getStatusText(phase.status)}
                         </div>
-                        <div className="text-[11px] font-medium pt-2 border-t border-black/10 mt-2">
-                          필요 인원: {phase.required_personnel}명
+                        <div className="text-[11px] font-medium pt-2 border-t border-black/10 mt-2 flex justify-between items-center">
+                          <span>필요 인원: {phase.required_personnel}명</span>
+                          <span className={`px-1.5 py-0.5 rounded ${phase.mobilizations?.length >= phase.required_personnel ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            투입: {phase.mobilizations?.length || 0}명
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -506,7 +559,7 @@ const ProjectManagement: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">필요/투입 인원수</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">필요 인원수</label>
                     <input
                       type="number"
                       min="0"
@@ -515,6 +568,44 @@ const ProjectManagement: React.FC = () => {
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                     />
                   </div>
+                </div>
+
+                {/* 인원 배정 */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-sm font-semibold text-slate-700">투입 인원 (M-PLAN 연동)</label>
+                    <span className="text-xs text-sky-600 font-bold">{selectedPhaseUsers.length}명 선택됨</span>
+                  </div>
+                  <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1.5">
+                    {users.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-2">등록된 사용자가 없습니다.</p>
+                    ) : (
+                      users.map(u => (
+                        <label key={u.id} className="flex items-center space-x-3 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition">
+                          <input
+                            type="checkbox"
+                            checked={selectedPhaseUsers.includes(u.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPhaseUsers(prev => [...prev, u.id]);
+                              } else {
+                                setSelectedPhaseUsers(prev => prev.filter(id => id !== u.id));
+                              }
+                            }}
+                            className="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500"
+                          />
+                          <span className="text-sm text-slate-700 flex items-center gap-2">
+                            {u.full_name} 
+                            <span className="text-[10px] text-slate-400">({u.email})</span>
+                          </span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 flex items-start gap-1">
+                    <span className="text-sky-500 font-bold">💡</span>
+                    이곳에서 인원을 선택하면 투입계획(M-PLAN)에 이 페이즈의 기간으로 자동 등록됩니다.
+                  </p>
                 </div>
               </form>
             </div>
