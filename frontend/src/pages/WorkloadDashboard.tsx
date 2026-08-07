@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react';
 import { Users, UserPlus, Briefcase, X, AlertTriangle } from 'lucide-react';
 import { memberManagementService } from '@/services/memberManagementService';
 import { personnelService } from '@/services/personnelService';
-import { UserWorkload, UserProfile, Team, Project } from '@/types';
+import { UserWorkload, Team, Project } from '@/types';
 import toast from 'react-hot-toast';
 
 export default function WorkloadDashboard() {
   const [workloads, setWorkloads] = useState<UserWorkload[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,13 +31,12 @@ export default function WorkloadDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [workloadsData, usersData, { teams: teamsData, projects: projectsData }] = await Promise.all([
+      const [workloadsData, _, { teams: teamsData, projects: projectsData }] = await Promise.all([
         memberManagementService.getAllWorkloads(),
         memberManagementService.getAllActiveUsers(),
         memberManagementService.getTeamsAndProjects()
       ]);
       setWorkloads(workloadsData);
-      setUsers(usersData);
       setTeams(teamsData || []);
       setProjects(projectsData || []);
     } catch (error) {
