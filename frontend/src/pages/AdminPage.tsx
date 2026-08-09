@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getAllTeams, createTeam, updateTeam, deleteTeam } from '@/services/teamService';
-import { exportSystemBackup, importSystemRestore } from '@/services/backupService';
+import { 
+  exportSystemBackup, 
+  importSystemRestore,
+  saveBackupToCloud,
+  getCloudBackups,
+  downloadCloudBackup,
+  restoreFromCloudBackup,
+  BackupFileMeta
+} from '@/services/backupService';
 import { UserProfile, Team } from '@/types';
 import toast from 'react-hot-toast';
 import {
@@ -38,6 +46,9 @@ const AdminPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [restoring, setRestoring] = useState(false);
+  
+  const [cloudBackups, setCloudBackups] = useState<BackupFileMeta[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
 
   // 팀 CRUD 모달 상태
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -55,6 +66,24 @@ const AdminPage = () => {
   useEffect(() => {
     fetchUsersAndTeams();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'backup') {
+      fetchCloudBackups();
+    }
+  }, [activeTab]);
+
+  const fetchCloudBackups = async () => {
+    try {
+      setLoadingBackups(true);
+      const data = await getCloudBackups();
+      setCloudBackups(data);
+    } catch (error) {
+      console.error('백업 목록 로드 실패:', error);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
 
   const fetchUsersAndTeams = async () => {
     try {
@@ -289,6 +318,36 @@ const AdminPage = () => {
     } catch (error) {
       console.error('백업 실패:', error);
       toast.error('백업 파일 생성 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleSaveCloudBackup = async () => {
+    try {
+      setRestoring(true);
+      const res = await saveBackupToCloud();
+      toast.success(res.message);
+      fetchCloudBackups();
+    } catch (error) {
+      toast.error('클라우드 백업 저장에 실패했습니다.');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const handleRestoreCloudBackup = async (fileName: string) => {
+    if (!window.confirm(`⚠️ 경고: '${fileName}' 백업 시점으로 시스템을 완전히 되돌리시겠습니까? 현재 데이터는 덮어씌워집니다.`)) {
+      return;
+    }
+    
+    try {
+      setRestoring(true);
+      const res = await restoreFromCloudBackup(fileName);
+      toast.success(res.message);
+      fetchUsersAndTeams();
+    } catch (error: any) {
+      toast.error(error.message || '클라우드 백업 복원에 실패했습니다.');
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -722,7 +781,7 @@ const AdminPage = () => {
 
               <label className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-2xl shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2 cursor-pointer active:scale-95 text-center">
                 <Upload className="h-4 w-4" />
-                {restoring ? '데이터 복원 처리 중...' : '백업 파일 선택 및 복원하기 (.json)'}
+                {restoring ? '데이터 복원 처리 중...' : '로컬 백업 파일 선택 및 복원하기 (.json)'}
                 <input
                   type="file"
                   accept=".json"
@@ -731,6 +790,76 @@ const AdminPage = () => {
                   className="hidden"
                 />
               </label>
+            </div>
+          </div>
+
+          {/* 클라우드 백업 이력 카드 */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-sky-50 text-sky-600 rounded-2xl">
+                  <Cloud className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">안전한 주간 백업 관리 (Cloud)</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">매주 금요일 정기 백업 버튼을 눌러 스토리지에 이력을 저장하세요.</p>
+                </div>
+              </div>
+              <button
+                onClick={handleSaveCloudBackup}
+                disabled={restoring}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition disabled:opacity-50"
+              >
+                + 현재 상태 클라우드 백업 생성
+              </button>
+            </div>
+
+            <div className="mt-4 border border-slate-100 rounded-2xl overflow-hidden">
+              {loadingBackups ? (
+                <div className="p-8 text-center text-slate-400 text-xs">백업 이력을 불러오는 중...</div>
+              ) : cloudBackups.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">클라우드에 저장된 백업 내역이 없습니다.</div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-slate-600">
+                    <tr>
+                      <th className="px-6 py-3 font-bold">백업 일시 (파일명)</th>
+                      <th className="px-6 py-3 font-bold">용량</th>
+                      <th className="px-6 py-3 font-bold text-right">관리 작업</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {cloudBackups.map((backup) => (
+                      <tr key={backup.id} className="hover:bg-slate-50/50 transition">
+                        <td className="px-6 py-3">
+                          <p className="font-bold text-slate-900">{backup.name}</p>
+                          <p className="text-slate-400 text-[10px] mt-0.5">{new Date(backup.created_at).toLocaleString()}</p>
+                        </td>
+                        <td className="px-6 py-3 text-slate-600 font-medium">
+                          {((backup.metadata?.size || 0) / 1024).toFixed(2)} KB
+                        </td>
+                        <td className="px-6 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => downloadCloudBackup(backup.name)}
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition flex items-center gap-1.5"
+                            >
+                              <Download className="h-3 w-3" /> 다운로드
+                            </button>
+                            <button
+                              onClick={() => handleRestoreCloudBackup(backup.name)}
+                              disabled={restoring}
+                              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg transition flex items-center gap-1.5"
+                            >
+                              <RefreshCw className="h-3 w-3" /> 이 시점으로 복원
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
 
