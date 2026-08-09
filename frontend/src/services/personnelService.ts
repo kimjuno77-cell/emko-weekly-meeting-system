@@ -37,6 +37,19 @@ export const personnelService = {
     return data as OfflinePersonnel;
   },
 
+  // 미가입 인력 수정
+  async updateOfflinePersonnel(id: string, personnel: { full_name?: string, email?: string | null, team_id?: string | null, role?: string }): Promise<OfflinePersonnel> {
+    const { data, error } = await supabase
+      .from('offline_personnel')
+      .update(personnel)
+      .eq('id', id)
+      .select('*, team:teams(*)')
+      .single();
+
+    if (error) throw error;
+    return data as OfflinePersonnel;
+  },
+
   // 미가입 인력 삭제
   async deleteOfflinePersonnel(id: string): Promise<void> {
     const { error } = await supabase

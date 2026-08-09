@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, Briefcase, X, AlertTriangle } from 'lucide-react';
+import { Users, UserPlus, Briefcase, X, AlertTriangle, Edit2, Trash2 } from 'lucide-react';
 import { memberManagementService } from '@/services/memberManagementService';
 import { personnelService } from '@/services/personnelService';
 import { UserWorkload, Team, Project } from '@/types';
@@ -24,6 +24,14 @@ export default function WorkloadDashboard() {
   const [offlineEmail, setOfflineEmail] = useState('');
   const [offlineTeamId, setOfflineTeamId] = useState('');
   const [isAddingOffline, setIsAddingOffline] = useState(false);
+
+  // 미가입 인력 수정 모달 상태
+  const [isEditOfflineModalOpen, setIsEditOfflineModalOpen] = useState(false);
+  const [editOfflineId, setEditOfflineId] = useState('');
+  const [editOfflineName, setEditOfflineName] = useState('');
+  const [editOfflineEmail, setEditOfflineEmail] = useState('');
+  const [editOfflineTeamId, setEditOfflineTeamId] = useState('');
+  const [isEditingOffline, setIsEditingOffline] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -117,6 +125,54 @@ export default function WorkloadDashboard() {
     }
   };
 
+  const handleUpdateOfflinePersonnel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editOfflineName.trim()) {
+      toast.error('이름을 입력해주세요.');
+      return;
+    }
+    
+    setIsEditingOffline(true);
+    try {
+      await personnelService.updateOfflinePersonnel(editOfflineId, {
+        full_name: editOfflineName,
+        email: editOfflineEmail || null,
+        team_id: editOfflineTeamId || null
+      });
+      toast.success('미가입 인력 정보가 수정되었습니다.');
+      setIsEditOfflineModalOpen(false);
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || '인력 수정에 실패했습니다.');
+    } finally {
+      setIsEditingOffline(false);
+    }
+  };
+
+  const handleDeleteOfflinePersonnel = async (id: string, name: string) => {
+    if (!confirm(`정말로 미가입 인력 '${name}'을(를) 삭제하시겠습니까?\n관련된 모든 투입 이력이 삭제됩니다.`)) return;
+
+    try {
+      await personnelService.deleteOfflinePersonnel(id);
+      toast.success('미가입 인력이 삭제되었습니다.');
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || '인력 삭제에 실패했습니다.');
+    }
+  };
+
+  const openEditOfflineModal = (wl: UserWorkload) => {
+    const offlineId = wl.user_id.replace('offline_', '');
+    setEditOfflineId(offlineId);
+    setEditOfflineName(wl.full_name);
+    setEditOfflineEmail(wl.email === '(미가입 인력)' ? '' : wl.email);
+    const team = wl.assigned_teams[0]; // primary_team_name이 있지만 team_id를 정확히 매핑하기 어려울 수 있으나 일단 현재 할당된 첫번째 팀을 쓰거나 원래 소속 팀을 매핑해야 함. 
+    // Wait, in getAllWorkloads, primary_team_name is the actual team name. To get team_id, we can look up from teams.
+    const primaryTeam = teams.find(t => t.name === wl.primary_team_name);
+    setEditOfflineTeamId(primaryTeam ? primaryTeam.id : '');
+    setIsEditOfflineModalOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -169,8 +225,32 @@ export default function WorkloadDashboard() {
               {workloads.map((wl) => (
                 <tr key={wl.user_id} className="hover:bg-slate-50 transition-colors group">
                   <td className="px-6 py-4">
-                    <div className="font-bold text-slate-900">{wl.full_name}</div>
-                    <div className="text-xs text-slate-500">{wl.email}</div>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <div className="font-bold text-slate-900 flex items-center gap-2">
+                          {wl.full_name}
+                          {wl.user_id.startsWith('offline_') && (
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => openEditOfflineModal(wl)}
+                                className="text-slate-400 hover:text-sky-600 transition"
+                                title="수정"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOfflinePersonnel(wl.user_id.replace('offline_', ''), wl.full_name)}
+                                className="text-slate-400 hover:text-rose-600 transition"
+                                title="삭제"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500">{wl.email}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-2">
@@ -389,6 +469,85 @@ export default function WorkloadDashboard() {
                 className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition shadow-md shadow-sky-500/20 disabled:opacity-50"
               >
                 {isAddingOffline ? '등록 중...' : '등록 완료'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 미가입 인력 수정 모달 */}
+      {isEditOfflineModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800">
+                미가입 인력 수정
+              </h2>
+              <button 
+                onClick={() => setIsEditOfflineModalOpen(false)}
+                className="p-1 hover:bg-slate-200 rounded-lg transition text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <form id="editOfflineForm" onSubmit={handleUpdateOfflinePersonnel} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">이름 (필수)</label>
+                  <input
+                    type="text"
+                    value={editOfflineName}
+                    onChange={(e) => setEditOfflineName(e.target.value)}
+                    placeholder="홍길동"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">이메일 (선택 - 추후 회원가입 시 연동용)</label>
+                  <input
+                    type="email"
+                    value={editOfflineEmail}
+                    onChange={(e) => setEditOfflineEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">소속 팀 (선택)</label>
+                  <select
+                    value={editOfflineTeamId}
+                    onChange={(e) => setEditOfflineTeamId(e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                  >
+                    <option value="">소속 없음</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </form>
+            </div>
+            
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setIsEditOfflineModalOpen(false)}
+                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition"
+                disabled={isEditingOffline}
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                form="editOfflineForm"
+                disabled={isEditingOffline}
+                className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-lg transition shadow-md shadow-sky-500/20 disabled:opacity-50"
+              >
+                {isEditingOffline ? '수정 중...' : '수정 완료'}
               </button>
             </div>
           </div>

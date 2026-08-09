@@ -102,7 +102,7 @@ export const memberManagementService = {
     // 1.5) 모든 오프라인 인력 조회
     const { data: offlineUsers, error: offlineError } = await supabase
       .from('offline_personnel')
-      .select('id, full_name, team_id, team:teams(name)')
+      .select('id, full_name, email, team_id, team:teams(name)')
       .order('full_name', { ascending: true });
 
     if (offlineError) throw offlineError;
@@ -182,7 +182,7 @@ export const memberManagementService = {
       return {
         user_id: `offline_${user.id}`, // 식별용으로 접두어 추가
         full_name: user.full_name || '이름 없음',
-        email: '(미가입 인력)',
+        email: user.email || '(미가입 인력)',
         primary_team_name: user.team?.name || null,
         assigned_teams: assignedTeams,
         assigned_projects: assignedProjects,
