@@ -21,6 +21,7 @@ export default function WorkloadDashboard() {
   // 미가입 인력 등록 모달 상태
   const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
   const [offlineName, setOfflineName] = useState('');
+  const [offlineEmail, setOfflineEmail] = useState('');
   const [offlineTeamId, setOfflineTeamId] = useState('');
   const [isAddingOffline, setIsAddingOffline] = useState(false);
 
@@ -99,12 +100,14 @@ export default function WorkloadDashboard() {
     try {
       await personnelService.createOfflinePersonnel({
         full_name: offlineName,
+        email: offlineEmail || null,
         team_id: offlineTeamId || null,
         role: 'member'
       });
       toast.success('미가입 인력이 등록되었습니다.');
       setIsOfflineModalOpen(false);
       setOfflineName('');
+      setOfflineEmail('');
       setOfflineTeamId('');
       fetchData();
     } catch (error: any) {
@@ -340,6 +343,17 @@ export default function WorkloadDashboard() {
                     placeholder="홍길동"
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
                     required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">이메일 (선택 - 추후 회원가입 시 연동용)</label>
+                  <input
+                    type="email"
+                    value={offlineEmail}
+                    onChange={(e) => setOfflineEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
                   />
                 </div>
 

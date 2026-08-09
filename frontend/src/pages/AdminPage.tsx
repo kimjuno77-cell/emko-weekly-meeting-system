@@ -82,13 +82,10 @@ const AdminPage = () => {
   // 회원 가입 승인 (is_active -> true)
   const handleApproveUser = async (userId: string, teamId?: string) => {
     try {
-      const updateData: any = { is_active: true };
-      if (teamId) updateData.team_id = teamId;
-
-      const { error } = await supabase
-        .from('user_profiles')
-        .update(updateData)
-        .eq('id', userId);
+      const { error } = await supabase.rpc('approve_user_and_merge_offline', {
+        p_user_id: userId,
+        p_team_id: teamId || null
+      });
 
       if (error) throw error;
       toast.success('회원 가입이 성공적으로 승인되었습니다!');

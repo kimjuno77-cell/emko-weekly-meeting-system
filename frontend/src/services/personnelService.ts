@@ -26,7 +26,7 @@ export const personnelService = {
   },
 
   // 새로운 미가입 인력 추가
-  async createOfflinePersonnel(personnel: { full_name: string, team_id?: string | null, role?: string, created_by?: string }): Promise<OfflinePersonnel> {
+  async createOfflinePersonnel(personnel: { full_name: string, email?: string | null, team_id?: string | null, role?: string, created_by?: string }): Promise<OfflinePersonnel> {
     const { data, error } = await supabase
       .from('offline_personnel')
       .insert([personnel])

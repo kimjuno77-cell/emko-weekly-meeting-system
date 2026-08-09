@@ -129,6 +129,7 @@ export interface Comment {
 export interface OfflinePersonnel {
   id: string;
   full_name: string;
+  email?: string | null;
   team_id: string | null;
   role: string | null;
   created_by: string | null;
