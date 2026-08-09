@@ -88,7 +88,8 @@ const Dashboard = () => {
   };
 
   const submittedUpdates = currentUpdates.filter(u => u.status === 'submitted' || u.status === 'reviewed');
-  const submittedCount = submittedUpdates.length;
+  const submittedTeams = new Set(submittedUpdates.filter(u => u.team_id).map(u => u.team_id));
+  const submittedCount = submittedTeams.size;
 
   // Monthly Aggregation for M-Plan
   const { monthHeaders, monthlyData } = useMemo(() => {

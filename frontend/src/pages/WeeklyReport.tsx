@@ -189,7 +189,8 @@ const WeeklyReport = () => {
   const progressCount = weeklyUpdates.reduce((sum, u) => sum + (u.tasks?.filter((t) => t.task_type === 'progress').length || 0), 0);
   const issueCount = weeklyUpdates.reduce((sum, u) => sum + (u.tasks?.filter((t) => t.task_type === 'issue').length || 0), 0);
   const planCount = weeklyUpdates.reduce((sum, u) => sum + (u.tasks?.filter((t) => t.task_type === 'plan').length || 0), 0);
-  const submittedCount = weeklyUpdates.filter((u) => u.status === 'submitted' || u.status === 'reviewed').length;
+  const submittedTeams = new Set(weeklyUpdates.filter((u) => (u.status === 'submitted' || u.status === 'reviewed') && u.team_id).map((u) => u.team_id));
+  const submittedCount = submittedTeams.size;
 
   return (
     <div className="space-y-6">
@@ -290,20 +291,20 @@ const WeeklyReport = () => {
               <div className="p-4 bg-slate-50/50 border border-slate-100 rounded-xl text-center text-xs text-slate-500">이번 주차에 보고된 특별한 지연 사항이 없습니다.</div>
             ) : (
               <div className="border border-rose-100 rounded-2xl overflow-hidden shadow-sm print:border-0 print:shadow-none">
-                <table className="min-w-full divide-y divide-rose-100 text-left text-xs">
+                <table className="w-full table-fixed divide-y divide-rose-100 text-left text-xs">
                   <thead className="bg-rose-50/50 font-bold text-rose-700">
                     <tr>
-                      <th className="px-4 py-3 w-28">소속 팀</th>
-                      <th className="px-4 py-3">이슈 사항</th>
-                      <th className="px-4 py-3 w-24 text-center">우선순위</th>
-                      <th className="px-4 py-3 w-24 text-center">상태</th>
+                      <th className="px-3 py-3 w-[15%]">소속 팀</th>
+                      <th className="px-3 py-3 w-[55%]">이슈 사항</th>
+                      <th className="px-3 py-3 w-[15%] text-center">우선순위</th>
+                      <th className="px-3 py-3 w-[15%] text-center">상태</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-rose-100 bg-white">
                     {criticalIssues.map((issue) => (
                       <tr key={issue.id} className="hover:bg-rose-50/10">
-                        <td className="px-4 py-3 font-bold text-slate-900">{issue.teamName}</td>
-                        <td className="px-4 py-3 space-y-1">
+                        <td className="px-3 py-3 font-bold text-slate-900 truncate">{issue.teamName}</td>
+                        <td className="px-3 py-3 space-y-1 break-words">
                           <p className="font-bold text-slate-800">{issue.title}</p>
                           {issue.description && <p className="text-slate-500 whitespace-pre-wrap">{issue.description}</p>}
                         </td>
@@ -331,22 +332,22 @@ const WeeklyReport = () => {
               <div className="p-4 bg-slate-50/50 border border-slate-100 rounded-xl text-center text-xs text-slate-500">추적 중인 중요 Pending 과제가 없습니다.</div>
             ) : (
               <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm print:border-0 print:shadow-none">
-                <table className="min-w-full divide-y divide-slate-100 text-left text-xs">
+                <table className="w-full table-fixed divide-y divide-slate-100 text-left text-xs">
                   <thead className="bg-slate-50 font-bold text-slate-700">
                     <tr>
-                      <th className="px-4 py-3 w-20">ID</th>
-                      <th className="px-4 py-3 w-28">담당 부서</th>
-                      <th className="px-4 py-3">업무 내용</th>
-                      <th className="px-4 py-3 w-24">담당자</th>
-                      <th className="px-4 py-3 w-28 text-center">목표 기한</th>
+                      <th className="px-3 py-3 w-[12%]">ID</th>
+                      <th className="px-3 py-3 w-[15%]">담당 부서</th>
+                      <th className="px-3 py-3 w-[45%]">업무 내용</th>
+                      <th className="px-3 py-3 w-[13%]">담당자</th>
+                      <th className="px-3 py-3 w-[15%] text-center">목표 기한</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {highPriorityPending.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50/50">
-                        <td className="px-4 py-3 font-bold text-amber-700">{item.item_id}</td>
-                        <td className="px-4 py-3 font-bold text-slate-800">{item.team?.name}</td>
-                        <td className="px-4 py-3 space-y-1">
+                        <td className="px-3 py-3 font-bold text-amber-700 truncate">{item.item_id}</td>
+                        <td className="px-3 py-3 font-bold text-slate-800 truncate">{item.team?.name}</td>
+                        <td className="px-3 py-3 space-y-1 break-words">
                           <p className="font-bold text-slate-800">{item.title}</p>
                           {item.description && <p className="text-slate-500 whitespace-pre-wrap">{item.description}</p>}
                         </td>
