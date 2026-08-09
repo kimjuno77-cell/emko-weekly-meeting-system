@@ -166,7 +166,7 @@ export default function WorkloadDashboard() {
     setEditOfflineId(offlineId);
     setEditOfflineName(wl.full_name);
     setEditOfflineEmail(wl.email === '(미가입 인력)' ? '' : wl.email);
-    const team = wl.assigned_teams[0]; // primary_team_name이 있지만 team_id를 정확히 매핑하기 어려울 수 있으나 일단 현재 할당된 첫번째 팀을 쓰거나 원래 소속 팀을 매핑해야 함. 
+    // primary_team_name이 있지만 team_id를 정확히 매핑하기 어려울 수 있으나 일단 현재 할당된 첫번째 팀을 쓰거나 원래 소속 팀을 매핑해야 함. 
     // Wait, in getAllWorkloads, primary_team_name is the actual team name. To get team_id, we can look up from teams.
     const primaryTeam = teams.find(t => t.name === wl.primary_team_name);
     setEditOfflineTeamId(primaryTeam ? primaryTeam.id : '');
