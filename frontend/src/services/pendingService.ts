@@ -1,9 +1,9 @@
-// 설명: Pending 항목 관련 API 호출 서비스 (UUID/날짜 유효성 자동 정리 및 오류 자동 복구 포함)
+﻿// ?ㅻ챸: Pending ??ぉ 愿??API ?몄텧 ?쒕퉬??(UUID/?좎쭨 ?좏슚???먮룞 ?뺣━ 諛??ㅻ쪟 ?먮룞 蹂듦뎄 ?ы븿)
 
 import { supabase } from '@/lib/supabase';
 import { PendingItem, PendingItemInput } from '@/types';
 
-// 설명: 모든 Pending 항목 가져오기 (완료되지 않은 항목만)
+// ?ㅻ챸: 紐⑤뱺 Pending ??ぉ 媛?몄삤湲?(?꾨즺?섏? ?딆? ??ぉ留?
 export const getAllPendingItems = async (): Promise<PendingItem[]> => {
   const { data, error } = await supabase
     .from('pending_items')
@@ -11,23 +11,22 @@ export const getAllPendingItems = async (): Promise<PendingItem[]> => {
       *,
       team:teams(*),
       assignee:user_profiles!assigned_to(*),
-      creator:user_profiles!created_by(*),
+      
       related_task:tasks(*)
     `)
     .eq('is_completed', false)
-    .order('priority', { ascending: true }) // high가 먼저
-    .order('target_date', { ascending: true }); // 목표일이 빠른 것 먼저
+    .order('priority', { ascending: true }) // high媛 癒쇱?
+    .order('target_date', { ascending: true }); // 紐⑺몴?쇱씠 鍮좊Ⅸ 寃?癒쇱?
   
   if (error) {
-    console.error('Pending 항목 조회 실패:', error);
-    throw new Error('Pending 항목을 불러오는데 실패했습니다.');
+    console.error('Pending ??ぉ 議고쉶 ?ㅽ뙣:', error);
+    throw new Error('Pending ??ぉ??遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
   }
   
   return data || [];
 };
 
-// 설명: 특정 팀의 Pending 항목 가져오기
-export const getPendingItemsByTeam = async (
+// ?ㅻ챸: ?뱀젙 ???Pending ??ぉ 媛?몄삤湲?export const getPendingItemsByTeam = async (
   teamId: string,
   includeCompleted: boolean = false
 ): Promise<PendingItem[]> => {
@@ -37,12 +36,12 @@ export const getPendingItemsByTeam = async (
       *,
       team:teams(*),
       assignee:user_profiles!assigned_to(*),
-      creator:user_profiles!created_by(*),
+      
       related_task:tasks(*)
     `)
     .eq('team_id', teamId);
   
-  // 설명: 완료된 항목 포함 여부
+  // ?ㅻ챸: ?꾨즺????ぉ ?ы븿 ?щ?
   if (!includeCompleted) {
     query = query.eq('is_completed', false);
   }
@@ -52,22 +51,21 @@ export const getPendingItemsByTeam = async (
     .order('target_date', { ascending: true });
   
   if (error) {
-    console.error('팀별 Pending 항목 조회 실패:', error);
-    throw new Error('Pending 항목을 불러오는데 실패했습니다.');
+    console.error('?蹂?Pending ??ぉ 議고쉶 ?ㅽ뙣:', error);
+    throw new Error('Pending ??ぉ??遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
   }
   
   return data || [];
 };
 
-// 설명: 우선순위 높은 Pending 항목 가져오기
-export const getHighPriorityPendingItems = async (): Promise<PendingItem[]> => {
+// ?ㅻ챸: ?곗꽑?쒖쐞 ?믪? Pending ??ぉ 媛?몄삤湲?export const getHighPriorityPendingItems = async (): Promise<PendingItem[]> => {
   const { data, error } = await supabase
     .from('pending_items')
     .select(`
       *,
       team:teams(*),
       assignee:user_profiles!assigned_to(*),
-      creator:user_profiles!created_by(*),
+      
       related_task:tasks(*)
     `)
     .eq('is_completed', false)
@@ -75,14 +73,14 @@ export const getHighPriorityPendingItems = async (): Promise<PendingItem[]> => {
     .order('target_date', { ascending: true });
   
   if (error) {
-    console.error('우선순위 높은 Pending 항목 조회 실패:', error);
-    throw new Error('Pending 항목을 불러오는데 실패했습니다.');
+    console.error('?곗꽑?쒖쐞 ?믪? Pending ??ぉ 議고쉶 ?ㅽ뙣:', error);
+    throw new Error('Pending ??ぉ??遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
   }
   
   return data || [];
 };
 
-// 설명: 기한이 임박한 Pending 항목 가져오기 (3일 이내)
+// ?ㅻ챸: 湲고븳???꾨컯??Pending ??ぉ 媛?몄삤湲?(3???대궡)
 export const getUpcomingPendingItems = async (): Promise<PendingItem[]> => {
   const today = new Date();
   const threeDaysLater = new Date(today);
@@ -94,7 +92,7 @@ export const getUpcomingPendingItems = async (): Promise<PendingItem[]> => {
       *,
       team:teams(*),
       assignee:user_profiles!assigned_to(*),
-      creator:user_profiles!created_by(*),
+      
       related_task:tasks(*)
     `)
     .eq('is_completed', false)
@@ -102,14 +100,14 @@ export const getUpcomingPendingItems = async (): Promise<PendingItem[]> => {
     .order('target_date', { ascending: true });
   
   if (error) {
-    console.error('임박한 Pending 항목 조회 실패:', error);
-    throw new Error('Pending 항목을 불러오는데 실패했습니다.');
+    console.error('?꾨컯??Pending ??ぉ 議고쉶 ?ㅽ뙣:', error);
+    throw new Error('Pending ??ぉ??遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
   }
   
   return data || [];
 };
 
-// 설명: 새 Pending 항목 생성 (UUID 및 날짜 필드 자동 정리)
+// ?ㅻ챸: ??Pending ??ぉ ?앹꽦 (UUID 諛??좎쭨 ?꾨뱶 ?먮룞 ?뺣━)
 export const createPendingItem = async (
   input: PendingItemInput
 ): Promise<PendingItem> => {
@@ -119,7 +117,7 @@ export const createPendingItem = async (
     ...input,
     assigned_to: input.assigned_to ? input.assigned_to : null,
     target_date: input.target_date ? input.target_date : null,
-    created_by: user.data.user?.id || null,
+    
   };
 
   const { data, error } = await supabase
@@ -129,7 +127,7 @@ export const createPendingItem = async (
       *,
       team:teams(*),
       assignee:user_profiles!assigned_to(*),
-      creator:user_profiles!created_by(*),
+      
       related_task:tasks(*)
     `)
     .single();
@@ -147,26 +145,26 @@ export const createPendingItem = async (
           *,
           team:teams(*),
           assignee:user_profiles!assigned_to(*),
-          creator:user_profiles!created_by(*),
+          
           related_task:tasks(*)
         `)
         .single();
 
       if (retryErr) {
-        console.error('Pending 항목 생성 재시도 실패:', retryErr);
-        throw new Error(retryErr.message || 'Pending 항목을 생성하는데 실패했습니다.');
+        console.error('Pending ??ぉ ?앹꽦 ?ъ떆???ㅽ뙣:', retryErr);
+        throw new Error(retryErr.message || 'Pending ??ぉ???앹꽦?섎뒗???ㅽ뙣?덉뒿?덈떎.');
       }
       return retryData;
     }
 
-    console.error('Pending 항목 생성 실패:', error);
-    throw new Error(error.message || 'Pending 항목을 생성하는데 실패했습니다.');
+    console.error('Pending ??ぉ ?앹꽦 ?ㅽ뙣:', error);
+    throw new Error(error.message || 'Pending ??ぉ???앹꽦?섎뒗???ㅽ뙣?덉뒿?덈떎.');
   }
   
   return data;
 };
 
-// 설명: Pending 항목 수정 (UUID 및 날짜 필드 자동 정리)
+// ?ㅻ챸: Pending ??ぉ ?섏젙 (UUID 諛??좎쭨 ?꾨뱶 ?먮룞 ?뺣━)
 export const updatePendingItem = async (
   itemId: string,
   updates: Partial<PendingItemInput>
@@ -185,7 +183,7 @@ export const updatePendingItem = async (
       *,
       team:teams(*),
       assignee:user_profiles!assigned_to(*),
-      creator:user_profiles!created_by(*),
+      
       related_task:tasks(*)
     `)
     .single();
@@ -204,23 +202,23 @@ export const updatePendingItem = async (
           *,
           team:teams(*),
           assignee:user_profiles!assigned_to(*),
-          creator:user_profiles!created_by(*),
+          
           related_task:tasks(*)
         `)
         .single();
 
       if (retryErr) {
-        console.error('Pending 항목 수정 재시도 실패:', retryErr);
-        throw new Error(retryErr.message || 'Pending 항목을 수정하는데 실패했습니다.');
+        console.error('Pending ??ぉ ?섏젙 ?ъ떆???ㅽ뙣:', retryErr);
+        throw new Error(retryErr.message || 'Pending ??ぉ???섏젙?섎뒗???ㅽ뙣?덉뒿?덈떎.');
       }
       return retryData;
     }
 
-    console.error('Pending 항목 수정 실패:', error);
-    throw new Error(error.message || 'Pending 항목을 수정하는데 실패했습니다.');
+    console.error('Pending ??ぉ ?섏젙 ?ㅽ뙣:', error);
+    throw new Error(error.message || 'Pending ??ぉ???섏젙?섎뒗???ㅽ뙣?덉뒿?덈떎.');
   }
 
-  // 연관된 Task가 있다면 동기화 업데이트
+  // ?곌???Task媛 ?덈떎硫??숆린???낅뜲?댄듃
   if (data && data.related_task_id) {
     let taskStatus = 'pending';
     if (data.status === 'in_progress') taskStatus = 'in_progress';
@@ -228,7 +226,7 @@ export const updatePendingItem = async (
     else if (data.status === 'waiting') taskStatus = 'blocked';
     else if (data.status === 'cancelled') taskStatus = 'cancelled';
 
-    // 비동기 실행 (실패해도 Pending 업데이트 성공 유지)
+    // 鍮꾨룞湲??ㅽ뻾 (?ㅽ뙣?대룄 Pending ?낅뜲?댄듃 ?깃났 ?좎?)
     supabase.from('tasks').update({
       title: data.title,
       description: data.description,
@@ -237,14 +235,14 @@ export const updatePendingItem = async (
       assigned_to: data.assigned_to,
       progress_percentage: data.status === 'completed' ? 100 : (data.status === 'pending' ? 0 : undefined)
     }).eq('id', data.related_task_id).then(({ error }) => {
-      if (error) console.error('연관된 Task 업데이트 실패:', error);
+      if (error) console.error('?곌???Task ?낅뜲?댄듃 ?ㅽ뙣:', error);
     });
   }
   
   return data;
 };
 
-// 설명: Pending 항목 완료 처리
+// ?ㅻ챸: Pending ??ぉ ?꾨즺 泥섎━
 export const completePendingItem = async (itemId: string): Promise<PendingItem> => {
   const { data, error } = await supabase
     .from('pending_items')
@@ -258,32 +256,31 @@ export const completePendingItem = async (itemId: string): Promise<PendingItem> 
       *,
       team:teams(*),
       assignee:user_profiles!assigned_to(*),
-      creator:user_profiles!created_by(*),
+      
       related_task:tasks(*)
     `)
     .single();
   
   if (error) {
-    console.error('Pending 항목 완료 처리 실패:', error);
-    throw new Error('Pending 항목 완료 처리에 실패했습니다.');
+    console.error('Pending ??ぉ ?꾨즺 泥섎━ ?ㅽ뙣:', error);
+    throw new Error('Pending ??ぉ ?꾨즺 泥섎━???ㅽ뙣?덉뒿?덈떎.');
   }
 
-  // 연관된 Task 완료 처리 동기화
-  if (data && data.related_task_id) {
+  // ?곌???Task ?꾨즺 泥섎━ ?숆린??  if (data && data.related_task_id) {
     supabase.from('tasks').update({
       status: 'completed',
       progress_percentage: 100
     }).eq('id', data.related_task_id).then(({ error }) => {
-      if (error) console.error('연관된 Task 업데이트 실패:', error);
+      if (error) console.error('?곌???Task ?낅뜲?댄듃 ?ㅽ뙣:', error);
     });
   }
   
   return data;
 };
 
-// 설명: Pending 항목 삭제
+// ?ㅻ챸: Pending ??ぉ ??젣
 export const deletePendingItem = async (itemId: string): Promise<void> => {
-  // 연관된 Task ID 확인
+  // ?곌???Task ID ?뺤씤
   const { data: item } = await supabase.from('pending_items').select('related_task_id').eq('id', itemId).single();
 
   const { error } = await supabase
@@ -292,43 +289,39 @@ export const deletePendingItem = async (itemId: string): Promise<void> => {
     .eq('id', itemId);
   
   if (error) {
-    console.error('Pending 항목 삭제 실패:', error);
-    throw new Error('Pending 항목을 삭제하는데 실패했습니다.');
+    console.error('Pending ??ぉ ??젣 ?ㅽ뙣:', error);
+    throw new Error('Pending ??ぉ????젣?섎뒗???ㅽ뙣?덉뒿?덈떎.');
   }
 
-  // 연관된 Task가 있었다면 함께 삭제 (선택적)
+  // ?곌???Task媛 ?덉뿀?ㅻ㈃ ?④퍡 ??젣 (?좏깮??
   if (item && item.related_task_id) {
     supabase.from('tasks').delete().eq('id', item.related_task_id).then(({ error }) => {
-      if (error) console.error('연관된 Task 삭제 실패:', error);
+      if (error) console.error('?곌???Task ??젣 ?ㅽ뙣:', error);
     });
   }
 };
 
-// 설명: Pending 항목 통계 가져오기
-export const getPendingStats = async () => {
-  // 설명: 전체 Pending 항목 수
-  const { count: totalCount, error: totalError } = await supabase
+// ?ㅻ챸: Pending ??ぉ ?듦퀎 媛?몄삤湲?export const getPendingStats = async () => {
+  // ?ㅻ챸: ?꾩껜 Pending ??ぉ ??  const { count: totalCount, error: totalError } = await supabase
     .from('pending_items')
     .select('*', { count: 'exact', head: true })
     .eq('is_completed', false);
   
-  // 설명: 진행 중인 Pending 항목 수
-  const { count: inProgressCount, error: inProgressError } = await supabase
+  // ?ㅻ챸: 吏꾪뻾 以묒씤 Pending ??ぉ ??  const { count: inProgressCount, error: inProgressError } = await supabase
     .from('pending_items')
     .select('*', { count: 'exact', head: true })
     .eq('is_completed', false)
     .eq('status', 'in_progress');
   
-  // 설명: 우선순위 높은 Pending 항목 수
-  const { count: highPriorityCount, error: highPriorityError } = await supabase
+  // ?ㅻ챸: ?곗꽑?쒖쐞 ?믪? Pending ??ぉ ??  const { count: highPriorityCount, error: highPriorityError } = await supabase
     .from('pending_items')
     .select('*', { count: 'exact', head: true })
     .eq('is_completed', false)
     .eq('priority', 'high');
   
   if (totalError || inProgressError || highPriorityError) {
-    console.error('Pending 통계 조회 실패');
-    throw new Error('Pending 통계를 불러오는데 실패했습니다.');
+    console.error('Pending ?듦퀎 議고쉶 ?ㅽ뙣');
+    throw new Error('Pending ?듦퀎瑜?遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
   }
   
   return {

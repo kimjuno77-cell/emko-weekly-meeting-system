@@ -1,38 +1,38 @@
-// 설명: 애플리케이션 전체에서 사용하는 TypeScript 타입 정의
+﻿// ?ㅻ챸: ?좏뵆由ъ??댁뀡 ?꾩껜?먯꽌 ?ъ슜?섎뒗 TypeScript ????뺤쓽
 
 // ========================================
-// ENUM 타입 정의
+// ENUM ????뺤쓽
 // ========================================
 
-// 작업 타입 (주요 진행사항, 이슈, 계획)
+// ?묒뾽 ???(二쇱슂 吏꾪뻾?ы빆, ?댁뒋, 怨꾪쉷)
 export type TaskType = 'progress' | 'issue' | 'plan';
 
-// 작업 상태
+// ?묒뾽 ?곹깭
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'blocked' | 'cancelled';
 
-// Pending 항목 상태
+// Pending ??ぉ ?곹깭
 export type PendingStatus = 'pending' | 'in_progress' | 'waiting' | 'completed' | 'cancelled';
 
-// 우선순위
+// ?곗꽑?쒖쐞
 export type PriorityLevel = 'high' | 'medium' | 'low';
 
-// 사용자 역할
+// ?ъ슜????븷
 export type UserRole = 'admin' | 'team_leader' | 'member';
 
-// 주간 업데이트 상태
+// 二쇨컙 ?낅뜲?댄듃 ?곹깭
 export type WeeklyUpdateStatus = 'draft' | 'submitted' | 'reviewed';
 
-// 프로젝트 상태
+// ?꾨줈?앺듃 ?곹깭
 export type ProjectStatus = 'active' | 'completed' | 'on_hold';
 
-// 프로젝트 단계 상태
+// ?꾨줈?앺듃 ?④퀎 ?곹깭
 export type ProjectPhaseStatus = 'pending' | 'in_progress' | 'delayed' | 'ahead' | 'completed';
 
 // ========================================
-// 데이터베이스 테이블 타입 정의
+// ?곗씠?곕쿋?댁뒪 ?뚯씠釉?????뺤쓽
 // ========================================
 
-// 팀 정보
+// ? ?뺣낫
 export interface Team {
   id: string;
   name: string;
@@ -43,39 +43,37 @@ export interface Team {
   updated_at: string;
 }
 
-// 프로젝트
+// ?꾨줈?앺듃
 export interface Project {
   id: string;
   name: string;
   description: string | null;
   status: ProjectStatus;
   display_order: number;
-  created_by: string | null;
+  
   created_at: string;
   updated_at: string;
 }
 
-// 프로젝트 마일스톤(단계)
+// ?꾨줈?앺듃 留덉씪?ㅽ넠(?④퀎)
 export interface ProjectPhase {
   id: string;
   project_id: string;
-  phase_name: string; // 설계, 구매, 제작, 검사, 설치, 시운전 등
-  planned_start_date: string | null;
+  phase_name: string; // ?ㅺ퀎, 援щℓ, ?쒖옉, 寃?? ?ㅼ튂, ?쒖슫????  planned_start_date: string | null;
   planned_end_date: string | null;
   actual_start_date: string | null;
   actual_end_date: string | null;
   status: ProjectPhaseStatus;
   required_personnel: number;
   display_order: number;
-  created_by: string | null;
+  
   created_at: string;
   updated_at: string;
   
-  // 관계 데이터
-  project?: Project;
+  // 愿怨??곗씠??  project?: Project;
 }
 
-// 프로젝트 투입 계획 (Mobilization)
+// ?꾨줈?앺듃 ?ъ엯 怨꾪쉷 (Mobilization)
 export interface ProjectMobilization {
   id: string;
   project_id: string;
@@ -85,34 +83,31 @@ export interface ProjectMobilization {
   role_description: string | null;
   start_date: string;
   end_date: string;
-  created_by: string | null;
+  
   created_at: string;
   updated_at: string;
 
-  // 관계 데이터
-  project?: Project;
+  // 愿怨??곗씠??  project?: Project;
   user?: UserProfile;
   offline_personnel?: OfflinePersonnel;
   phase?: ProjectPhase;
 }
 
-// 첨부파일
+// 泥⑤??뚯씪
 export interface Attachment {
   id: string;
   file_name: string;
   file_url: string;
   file_size: number | null;
   content_type: string | null;
-  entity_type: string; // 'task', 'update', 'project' 등
-  entity_id: string;
+  entity_type: string; // 'task', 'update', 'project' ??  entity_id: string;
   uploaded_by: string | null;
   created_at: string;
 
-  // 관계 데이터
-  uploader?: UserProfile;
+  // 愿怨??곗씠??  uploader?: UserProfile;
 }
 
-// 댓글
+// ?볤?
 export interface Comment {
   id: string;
   content: string;
@@ -122,28 +117,25 @@ export interface Comment {
   created_at: string;
   updated_at: string;
 
-  // 관계 데이터
-  author?: UserProfile;
+  // 愿怨??곗씠??  author?: UserProfile;
 }
 
 
-// 오프라인 인력 (미가입 팀원)
+// ?ㅽ봽?쇱씤 ?몃젰 (誘멸??????
 export interface OfflinePersonnel {
   id: string;
   full_name: string;
   email?: string | null;
   team_id: string | null;
   role: string | null;
-  created_by: string | null;
+  
   created_at: string;
   updated_at: string;
   
-  // 관계 데이터
-  team?: Team;
+  // 愿怨??곗씠??  team?: Team;
 }
 
-// 사용자 프로필
-export interface UserProfile {
+// ?ъ슜???꾨줈??export interface UserProfile {
   id: string;
   email: string;
   full_name: string | null;
@@ -154,11 +146,10 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
   
-  // 관계 데이터
-  team?: Team;
+  // 愿怨??곗씠??  team?: Team;
 }
 
-// 팀 다중 소속 멤버
+// ? ?ㅼ쨷 ?뚯냽 硫ㅻ쾭
 export interface TeamMember {
   id: string;
   team_id: string;
@@ -166,12 +157,11 @@ export interface TeamMember {
   role: string;
   created_at: string;
   
-  // 관계 데이터
-  team?: Team;
+  // 愿怨??곗씠??  team?: Team;
   user?: UserProfile;
 }
 
-// 프로젝트 다중 소속 멤버
+// ?꾨줈?앺듃 ?ㅼ쨷 ?뚯냽 硫ㅻ쾭
 export interface ProjectMember {
   id: string;
   project_id: string;
@@ -179,12 +169,11 @@ export interface ProjectMember {
   role: string;
   created_at: string;
   
-  // 관계 데이터
-  project?: Project;
+  // 愿怨??곗씠??  project?: Project;
   user?: UserProfile;
 }
 
-// 워크로드 현황 (사용자별 소속 개수)
+// ?뚰겕濡쒕뱶 ?꾪솴 (?ъ슜?먮퀎 ?뚯냽 媛쒖닔)
 export interface UserWorkload {
   user_id: string;
   full_name: string;
@@ -195,29 +184,27 @@ export interface UserWorkload {
   total_workload_count: number;
 }
 
-// 주간 업데이트
+// 二쇨컙 ?낅뜲?댄듃
 export interface WeeklyUpdate {
   id: string;
   team_id: string | null;
   project_id?: string | null;
-  week_start_date: string; // ISO 날짜 문자열
-  week_end_date: string;
-  created_by: string | null;
+  week_start_date: string; // ISO ?좎쭨 臾몄옄??  week_end_date: string;
+  
   last_updated_by: string | null;
   status: WeeklyUpdateStatus;
   notes: string | null;
   created_at: string;
   updated_at: string;
   
-  // 관계 데이터
-  team?: Team;
+  // 愿怨??곗씠??  team?: Team;
   project?: Project;
   creator?: UserProfile;
   last_updater?: UserProfile;
   tasks?: Task[];
 }
 
-// 작업 항목
+// ?묒뾽 ??ぉ
 export interface Task {
   id: string;
   weekly_update_id: string;
@@ -233,22 +220,20 @@ export interface Task {
   priority: PriorityLevel;
   due_date: string | null;
   display_order: number;
-  created_by: string | null;
+  
   created_at: string;
   updated_at: string;
   
-  // 관계 데이터
-  weekly_update?: WeeklyUpdate;
+  // 愿怨??곗씠??  weekly_update?: WeeklyUpdate;
   assignee?: UserProfile;
   attachments?: Attachment[];
   comments?: Comment[];
 }
 
-// Pending 항목
+// Pending ??ぉ
 export interface PendingItem {
   id: string;
-  item_id: string; // P001, P002 등
-  team_id: string;
+  item_id: string; // P001, P002 ??  team_id: string;
   title: string;
   description: string | null;
   assigned_to: string | null;
@@ -266,18 +251,17 @@ export interface PendingItem {
   created_at: string;
   updated_at: string;
   
-  // 관계 데이터
-  team?: Team;
+  // 愿怨??곗씠??  team?: Team;
   assignee?: UserProfile;
   creator?: UserProfile;
   related_task?: Task;
 }
 
 // ========================================
-// 폼 입력 타입 정의
+// ???낅젰 ????뺤쓽
 // ========================================
 
-// 주간 업데이트 생성/수정 입력
+// 二쇨컙 ?낅뜲?댄듃 ?앹꽦/?섏젙 ?낅젰
 export interface WeeklyUpdateInput {
   team_id?: string | null;
   project_id?: string | null;
@@ -287,7 +271,7 @@ export interface WeeklyUpdateInput {
   notes?: string;
 }
 
-// 작업 항목 생성/수정 입력
+// ?묒뾽 ??ぉ ?앹꽦/?섏젙 ?낅젰
 export interface TaskInput {
   weekly_update_id: string;
   task_type: TaskType;
@@ -303,7 +287,7 @@ export interface TaskInput {
   display_order?: number;
 }
 
-// Pending 항목 생성/수정 입력
+// Pending ??ぉ ?앹꽦/?섏젙 ?낅젰
 export interface PendingItemInput {
   team_id: string;
   title: string;
@@ -319,11 +303,10 @@ export interface PendingItemInput {
 }
 
 // ========================================
-// UI 관련 타입 정의
+// UI 愿??????뺤쓽
 // ========================================
 
-// 대시보드 통계 데이터
-export interface DashboardStats {
+// ??쒕낫???듦퀎 ?곗씠??export interface DashboardStats {
   total_teams: number;
   total_updates: number;
   total_pending: number;
@@ -332,7 +315,7 @@ export interface DashboardStats {
   high_priority_pending: number;
 }
 
-// 팀별 진행 현황
+// ?蹂?吏꾪뻾 ?꾪솴
 export interface TeamProgress {
   team: Team;
   weekly_update?: WeeklyUpdate;
@@ -343,8 +326,7 @@ export interface TeamProgress {
   completion_rate: number;
 }
 
-// 주간회의 리포트 데이터
-export interface WeeklyMeetingReport {
+// 二쇨컙?뚯쓽 由ы룷???곗씠??export interface WeeklyMeetingReport {
   week_start: string;
   week_end: string;
   teams: TeamProgress[];
@@ -353,7 +335,7 @@ export interface WeeklyMeetingReport {
   upcoming_plans: Task[];
 }
 
-// 필터 옵션
+// ?꾪꽣 ?듭뀡
 export interface FilterOptions {
   team_id?: string;
   status?: TaskStatus | PendingStatus;
