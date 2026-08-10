@@ -236,7 +236,7 @@ const MobilizationPlan: React.FC = () => {
         actualStartDate: (plan as any).phase?.actual_start_date,
         actualEndDate: (plan as any).phase?.actual_end_date,
         colorClass: 'bg-indigo-500',
-        onClick: (isAdmin || plan.created_by === userProfile?.id) ? () => openEditModal(plan) : undefined
+        onClick: () => openEditModal(plan)
       });
     });
 
@@ -372,7 +372,7 @@ const MobilizationPlan: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    {(isAdmin || plan.created_by === userProfile?.id) ? (
+                    {(true) ? (
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end space-x-2">
                           <button 
