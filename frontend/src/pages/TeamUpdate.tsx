@@ -420,7 +420,7 @@ const TeamUpdate = () => {
       fetchWeeklyData(currentWeekStart, selectedTeamId, selectedProjectId);
     } catch (error) {
       console.error('작업 저장 실패:', error);
-      toast.error('작업 저장에 실패했습니다.');
+      toast.error(error instanceof Error ? error.message : '작업 저장에 실패했습니다.');
     }
   };
 
