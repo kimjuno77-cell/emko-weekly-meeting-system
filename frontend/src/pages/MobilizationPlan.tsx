@@ -36,7 +36,7 @@ const MobilizationPlan: React.FC = () => {
 
   useEffect(() => {
     fetchPlans();
-    if (isAdmin) {
+    if (true) {
       fetchFormData();
     }
   }, [isAdmin]);
@@ -274,7 +274,7 @@ const MobilizationPlan: React.FC = () => {
               <BarChartHorizontal className="w-4 h-4" />
             </button>
           </div>
-          {isAdmin && (
+          {(true) && (
             <button
               onClick={openCreateModal}
               className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-indigo-500/20"
