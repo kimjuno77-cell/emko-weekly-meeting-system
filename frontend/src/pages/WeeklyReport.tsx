@@ -57,7 +57,13 @@ const WeeklyReport = () => {
       setPrevWeeklyUpdates(prevUpdates.filter(u => u.status !== 'draft'));
 
       const teamsList = await getAllTeams();
-      setTeams(teamsList);
+      // 기술총괄팀 최상단 고정 정렬
+      const sortedTeams = [...teamsList].sort((a, b) => {
+        if (a.name === '기술총괄팀') return -1;
+        if (b.name === '기술총괄팀') return 1;
+        return 0; // 나머지는 기존 정렬 유지
+      });
+      setTeams(sortedTeams);
 
       const { data: pendingData } = await supabase
         .from('pending_items')
