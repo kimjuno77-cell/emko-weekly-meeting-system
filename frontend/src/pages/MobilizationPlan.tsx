@@ -77,7 +77,7 @@ const MobilizationPlan: React.FC = () => {
   const fetchFormData = async () => {
     try {
       const [projRes, userRes, offlineRes] = await Promise.all([
-        supabase.from('projects').select('*').eq('status', 'active'),
+        supabase.from('projects').select('*').eq('status', 'active').order('display_order', { ascending: true }).order('name', { ascending: true }),
         supabase.from('user_profiles').select('*').eq('is_active', true),
         supabase.from('offline_personnel').select('*')
       ]);

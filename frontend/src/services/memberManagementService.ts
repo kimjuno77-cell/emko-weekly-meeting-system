@@ -210,7 +210,7 @@ export const memberManagementService = {
     const { data: teams, error: tError } = await supabase.from('teams').select('*').order('display_order');
     if (tError) throw tError;
 
-    const { data: projects, error: pError } = await supabase.from('projects').select('*').eq('status', 'active').order('name');
+    const { data: projects, error: pError } = await supabase.from('projects').select('*').eq('status', 'active').order('display_order', { ascending: true }).order('name', { ascending: true });
     if (pError) throw pError;
 
     return { teams, projects };

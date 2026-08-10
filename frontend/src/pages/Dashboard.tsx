@@ -58,7 +58,7 @@ const Dashboard = () => {
         getAllTeams(),
         getPendingStats(),
         getHighPriorityPendingItems(),
-        supabase.from('projects').select('*, phases:project_phases(*)').order('name', { ascending: true }),
+        supabase.from('projects').select('*, phases:project_phases(*)').order('display_order', { ascending: true }).order('name', { ascending: true }),
         supabase.from('project_mobilizations').select('*, user:user_profiles!project_mobilizations_user_id_fkey(full_name), offline:offline_personnel!project_mobilizations_offline_personnel_id_fkey(full_name), project:projects(name)').order('start_date', { ascending: true }),
         getWeeklyUpdatesByWeek(weekStartDate),
         supabase.from('user_profiles').select('*'),

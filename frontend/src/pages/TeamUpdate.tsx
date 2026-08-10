@@ -129,7 +129,7 @@ const TeamUpdate = () => {
     try {
       const [teamsData, { data: projectsData }] = await Promise.all([
         getAllTeams(),
-        supabase.from('projects').select('*').order('name', { ascending: true })
+        supabase.from('projects').select('*').order('display_order', { ascending: true }).order('name', { ascending: true })
       ]);
       setAllTeams(teamsData);
       setAllProjects(projectsData || []);

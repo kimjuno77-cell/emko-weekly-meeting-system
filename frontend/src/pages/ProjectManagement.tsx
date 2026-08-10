@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Project, ProjectPhase } from '../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../stores/authStore';
-import { Plus, X, Calendar, Edit2, Trash2 } from 'lucide-react';
+import { Plus, X, Calendar, Edit2, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 
 import { personnelService } from '../services/personnelService';
 import { recommendPersonnel } from '../services/workloadService';
@@ -64,6 +64,7 @@ const ProjectManagement: React.FC = () => {
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('*')
+        .order('display_order', { ascending: true })
         .order('created_at', { ascending: false });
 
       if (projectsError) throw projectsError;
@@ -207,6 +208,42 @@ const ProjectManagement: React.FC = () => {
     }
   };
 
+  const handleMoveProject = async (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === projects.length - 1) return;
+
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    const currentProject = projects[index];
+    const targetProject = projects[newIndex];
+
+    const newProjects = [...projects];
+    // 위치 교환
+    newProjects[index] = targetProject;
+    newProjects[newIndex] = currentProject;
+
+    try {
+      // 설명: 모든 프로젝트의 display_order를 현재 배열 순서대로 재할당하여 업데이트
+      const updates = newProjects.map((p, i) => ({
+        id: p.id,
+        display_order: i
+      }));
+
+      // 개별 업데이트 실행
+      for (const update of updates) {
+        await supabase
+          .from('projects')
+          .update({ display_order: update.display_order })
+          .eq('id', update.id);
+      }
+      
+      toast.success('프로젝트 순서가 변경되었습니다.');
+      fetchProjects();
+    } catch (error: any) {
+      console.error('Error moving project:', error);
+      toast.error(`순서 변경 실패: ${error.message}`);
+    }
+  };
+
   const handleSaveProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectName.trim()) {
@@ -238,7 +275,8 @@ const ProjectManagement: React.FC = () => {
             name: projectName,
             description: projectDesc,
             created_by: userProfile?.id,
-            status: projectStatus
+            status: projectStatus,
+            display_order: projects.length > 0 ? projects.length : 0
           })
           .select()
           .single();
@@ -334,7 +372,7 @@ const ProjectManagement: React.FC = () => {
             새 프로젝트를 추가하여 관리를 시작하세요.
           </div>
         ) : (
-          projects.map(project => (
+          projects.map((project, index) => (
             <div key={project.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="bg-slate-50 border-b border-slate-200 p-5 flex justify-between items-center">
                 <div>
@@ -352,6 +390,22 @@ const ProjectManagement: React.FC = () => {
                 </div>
                 {isAdmin && (
                   <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleMoveProject(index, 'up')}
+                      disabled={index === 0}
+                      className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400"
+                      title="위로 이동"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleMoveProject(index, 'down')}
+                      disabled={index === projects.length - 1}
+                      className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400"
+                      title="아래로 이동"
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </button>
                     <button 
                       onClick={() => openEditModal(project)}
                       className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm"
