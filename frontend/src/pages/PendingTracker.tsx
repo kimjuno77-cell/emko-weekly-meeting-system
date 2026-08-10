@@ -64,7 +64,6 @@ const PendingTracker = () => {
           *,
           team:teams(*),
           assignee:user_profiles!assigned_to(*),
-          
           related_task:tasks(*)
         `);
       

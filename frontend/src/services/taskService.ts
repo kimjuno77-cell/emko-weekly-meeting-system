@@ -1,9 +1,10 @@
-﻿// ?ㅻ챸: ?묒뾽 ??ぉ 愿??API ?몄텧 ?쒕퉬??(UUID/?좏슚???먮룞 ?뺣━ 諛??ㅻ쪟 ?먮룞 蹂듦뎄 ?ы븿)
+// 설명: 작업 항목 관련 API 호출 서비스 (UUID/유효성 자동 정리 및 오류 자동 복구 포함)
 
 import { supabase } from '@/lib/supabase';
 import { Task, TaskInput, TaskType } from '@/types';
 
-// ?ㅻ챸: ?뱀젙 二쇨컙 ?낅뜲?댄듃??紐⑤뱺 ?묒뾽 ??ぉ 媛?몄삤湲?export const getTasksByWeeklyUpdate = async (
+// 설명: 특정 주간 업데이트의 모든 작업 항목 가져오기
+export const getTasksByWeeklyUpdate = async (
   weeklyUpdateId: string
 ): Promise<Task[]> => {
   const { data, error } = await supabase
@@ -11,21 +12,21 @@ import { Task, TaskInput, TaskType } from '@/types';
     .select(`
       *,
       weekly_update:weekly_updates(*),
-      assignee:user_profiles!assigned_to(*)
+      assignee:user_profiles(*)
     `)
     .eq('weekly_update_id', weeklyUpdateId)
     .order('display_order', { ascending: true })
     .order('created_at', { ascending: true });
   
   if (error) {
-    console.error('?묒뾽 ??ぉ 議고쉶 ?ㅽ뙣:', error);
-    throw new Error('?묒뾽 ??ぉ??遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
+    console.error('작업 항목 조회 실패:', error);
+    throw new Error('작업 항목을 불러오는데 실패했습니다.');
   }
   
   return data || [];
 };
 
-// ?ㅻ챸: ?뱀젙 ??낆쓽 ?묒뾽 ??ぉ留?媛?몄삤湲?(吏꾪뻾?ы빆/?댁뒋/怨꾪쉷)
+// 설명: 특정 타입의 작업 항목만 가져오기 (진행사항/이슈/계획)
 export const getTasksByType = async (
   weeklyUpdateId: string,
   taskType: TaskType
@@ -35,21 +36,21 @@ export const getTasksByType = async (
     .select(`
       *,
       weekly_update:weekly_updates(*),
-      assignee:user_profiles!assigned_to(*)
+      assignee:user_profiles(*)
     `)
     .eq('weekly_update_id', weeklyUpdateId)
     .eq('task_type', taskType)
     .order('display_order', { ascending: true });
   
   if (error) {
-    console.error('?묒뾽 ??ぉ 議고쉶 ?ㅽ뙣:', error);
-    throw new Error('?묒뾽 ??ぉ??遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.');
+    console.error('작업 항목 조회 실패:', error);
+    throw new Error('작업 항목을 불러오는데 실패했습니다.');
   }
   
   return data || [];
 };
 
-// ?ㅻ챸: ???묒뾽 ??ぉ ?앹꽦 (UUID 諛??ㅽ궎留?罹먯떆 ?ㅻ쪟 ?먮룞 ?명솚)
+// 설명: 새 작업 항목 생성 (UUID 및 스키마 캐시 오류 자동 호환)
 export const createTask = async (input: TaskInput): Promise<Task> => {
   const sanitizedInput: any = {
     ...input,
@@ -62,12 +63,13 @@ export const createTask = async (input: TaskInput): Promise<Task> => {
     .select(`
       *,
       weekly_update:weekly_updates(*),
-      assignee:user_profiles!assigned_to(*)
+      assignee:user_profiles(*)
     `)
     .single();
   
   if (error) {
-    // 而щ읆 誘몄〈??PGRST204) ?먮뒗 ?ㅽ궎留?罹먯떆 ?댁뒋 諛쒖깮 ???좉퇋 而щ읆 ?쒖쇅 ?ъ떆??    if (error.code === 'PGRST204' || error.message.includes('column')) {
+    // 컬럼 미존재(PGRST204) 또는 스키마 캐시 이슈 발생 시 신규 컬럼 제외 재시도
+    if (error.code === 'PGRST204' || error.message.includes('column')) {
       delete sanitizedInput.assignee_name;
       delete sanitizedInput.is_carried_over;
       delete sanitizedInput.original_task_id;
@@ -78,25 +80,25 @@ export const createTask = async (input: TaskInput): Promise<Task> => {
         .select(`
           *,
           weekly_update:weekly_updates(*),
-          assignee:user_profiles!assigned_to(*)
+          assignee:user_profiles(*)
         `)
         .single();
 
       if (retryErr) {
-        console.error('?묒뾽 ??ぉ ?앹꽦 ?ъ떆???ㅽ뙣:', retryErr);
-        throw new Error(retryErr.message || '?묒뾽 ??ぉ???앹꽦?섎뒗???ㅽ뙣?덉뒿?덈떎.');
+        console.error('작업 항목 생성 재시도 실패:', retryErr);
+        throw new Error(retryErr.message || '작업 항목을 생성하는데 실패했습니다.');
       }
       return retryData;
     }
 
-    console.error('?묒뾽 ??ぉ ?앹꽦 ?ㅽ뙣:', error);
-    throw new Error(error.message || '?묒뾽 ??ぉ???앹꽦?섎뒗???ㅽ뙣?덉뒿?덈떎.');
+    console.error('작업 항목 생성 실패:', error);
+    throw new Error(error.message || '작업 항목을 생성하는데 실패했습니다.');
   }
   
   return data;
 };
 
-// ?ㅻ챸: ?묒뾽 ??ぉ ?섏젙 (UUID 諛??ㅽ궎留?罹먯떆 ?ㅻ쪟 ?먮룞 ?명솚)
+// 설명: 작업 항목 수정 (UUID 및 스키마 캐시 오류 자동 호환)
 export const updateTask = async (
   taskId: string,
   updates: Partial<TaskInput>
@@ -113,7 +115,7 @@ export const updateTask = async (
     .select(`
       *,
       weekly_update:weekly_updates(*),
-      assignee:user_profiles!assigned_to(*)
+      assignee:user_profiles(*)
     `)
     .single();
   
@@ -130,22 +132,22 @@ export const updateTask = async (
         .select(`
           *,
           weekly_update:weekly_updates(*),
-          assignee:user_profiles!assigned_to(*)
+          assignee:user_profiles(*)
         `)
         .single();
 
       if (retryErr) {
-        console.error('?묒뾽 ??ぉ ?섏젙 ?ъ떆???ㅽ뙣:', retryErr);
-        throw new Error(retryErr.message || '?묒뾽 ??ぉ???섏젙?섎뒗???ㅽ뙣?덉뒿?덈떎.');
+        console.error('작업 항목 수정 재시도 실패:', retryErr);
+        throw new Error(retryErr.message || '작업 항목을 수정하는데 실패했습니다.');
       }
       data = retryData;
     } else {
-      console.error('?묒뾽 ??ぉ ?섏젙 ?ㅽ뙣:', error);
-      throw new Error(error.message || '?묒뾽 ??ぉ???섏젙?섎뒗???ㅽ뙣?덉뒿?덈떎.');
+      console.error('작업 항목 수정 실패:', error);
+      throw new Error(error.message || '작업 항목을 수정하는데 실패했습니다.');
     }
   }
 
-  // Pending ?곕룞 ?낅뜲?댄듃 (?곹깭 ?먮뒗 湲고? ?뺣낫 蹂寃???
+  // Pending 연동 업데이트 (상태 또는 기타 정보 변경 시)
   if (data) {
     const pendingUpdates: any = {};
     
@@ -167,13 +169,13 @@ export const updateTask = async (
     }
     
     if (Object.keys(pendingUpdates).length > 0) {
-      // 鍮꾨룞湲곕줈 ?덉쟾?섍쾶 Pending ??ぉ ?낅뜲?댄듃 ?ㅽ뻾 (?ㅽ뙣?대룄 Task ?낅뜲?댄듃???깃났 諛섑솚)
+      // 비동기로 안전하게 Pending 항목 업데이트 실행 (실패해도 Task 업데이트는 성공 반환)
       supabase
         .from('pending_items')
         .update(pendingUpdates)
         .eq('related_task_id', taskId)
         .then(({ error }) => {
-          if (error) console.error('Pending ??ぉ ?숆린???ㅽ뙣:', error);
+          if (error) console.error('Pending 항목 동기화 실패:', error);
         });
     }
   }
@@ -181,7 +183,7 @@ export const updateTask = async (
   return data;
 };
 
-// ?ㅻ챸: ?묒뾽 ??ぉ ??젣
+// 설명: 작업 항목 삭제
 export const deleteTask = async (taskId: string): Promise<void> => {
   const { error } = await supabase
     .from('tasks')
@@ -189,26 +191,27 @@ export const deleteTask = async (taskId: string): Promise<void> => {
     .eq('id', taskId);
   
   if (error) {
-    console.error('?묒뾽 ??ぉ ??젣 ?ㅽ뙣:', error);
-    throw new Error('?묒뾽 ??ぉ????젣?섎뒗???ㅽ뙣?덉뒿?덈떎.');
+    console.error('작업 항목 삭제 실패:', error);
+    throw new Error('작업 항목을 삭제하는데 실패했습니다.');
   }
 };
 
-// ?ㅻ챸: ?묒뾽 ??ぉ 吏꾪뻾瑜??낅뜲?댄듃
+// 설명: 작업 항목 진행률 업데이트
 export const updateTaskProgress = async (
   taskId: string,
   progressPercentage: number
 ): Promise<Task> => {
-  // ?ㅻ챸: 吏꾪뻾瑜좎씠 100%?대㈃ ?곹깭瑜?'completed'濡??먮룞 蹂寃?  const status = progressPercentage === 100 ? 'completed' : 'in_progress';
+  // 설명: 진행률이 100%이면 상태를 'completed'로 자동 변경
+  const status = progressPercentage === 100 ? 'completed' : 'in_progress';
   
   return updateTask(taskId, { progress_percentage: progressPercentage, status });
 };
 
-// ?ㅻ챸: ?щ윭 ?묒뾽 ??ぉ???쒖꽌 蹂寃?(?쒕옒洹????쒕∼)
+// 설명: 여러 작업 항목의 순서 변경 (드래그 앤 드롭)
 export const reorderTasks = async (
   tasks: { id: string; display_order: number }[]
 ): Promise<void> => {
-  // ?ㅻ챸: ?몃옖??뀡?쇰줈 紐⑤뱺 ?쒖꽌 ?낅뜲?댄듃
+  // 설명: 트랜잭션으로 모든 순서 업데이트
   const updates = tasks.map((task) =>
     supabase
       .from('tasks')
@@ -220,7 +223,7 @@ export const reorderTasks = async (
   
   const errors = results.filter((result) => result.error);
   if (errors.length > 0) {
-    console.error('?묒뾽 ??ぉ ?쒖꽌 蹂寃??ㅽ뙣:', errors);
-    throw new Error('?묒뾽 ??ぉ ?쒖꽌瑜?蹂寃쏀븯?붾뜲 ?ㅽ뙣?덉뒿?덈떎.');
+    console.error('작업 항목 순서 변경 실패:', errors);
+    throw new Error('작업 항목 순서를 변경하는데 실패했습니다.');
   }
 };

@@ -36,7 +36,7 @@ const MobilizationPlan: React.FC = () => {
 
   useEffect(() => {
     fetchPlans();
-    if (true) {
+    if (isAdmin) {
       fetchFormData();
     }
   }, [isAdmin]);
@@ -183,7 +183,6 @@ const MobilizationPlan: React.FC = () => {
             role_description: roleDesc,
             start_date: startDate,
             end_date: endDate,
-            created_by: userProfile?.id,
           };
         });
 
@@ -236,7 +235,7 @@ const MobilizationPlan: React.FC = () => {
         actualStartDate: (plan as any).phase?.actual_start_date,
         actualEndDate: (plan as any).phase?.actual_end_date,
         colorClass: 'bg-indigo-500',
-        onClick: () => openEditModal(plan)
+        onClick: isAdmin ? () => openEditModal(plan) : undefined
       });
     });
 
@@ -274,7 +273,7 @@ const MobilizationPlan: React.FC = () => {
               <BarChartHorizontal className="w-4 h-4" />
             </button>
           </div>
-          {(true) && (
+          {isAdmin && (
             <button
               onClick={openCreateModal}
               className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-indigo-500/20"
@@ -295,7 +294,7 @@ const MobilizationPlan: React.FC = () => {
           <div className="text-center py-20 text-slate-500">
             <UsersIcon className="w-16 h-16 mx-auto text-slate-200 mb-4" />
             등록된 인력 투입 계획이 없습니다.
-            {true && <p className="mt-2 text-sm text-slate-400">우측 상단의 버튼을 눌러 인력 투입을 계획해 보세요.</p>}
+            {isAdmin && <p className="mt-2 text-sm text-slate-400">우측 상단의 버튼을 눌러 인력 투입을 계획해 보세요.</p>}
           </div>
         ) : displayMode === 'table' ? (
           <div className="overflow-x-auto">
@@ -308,7 +307,7 @@ const MobilizationPlan: React.FC = () => {
                   <th className="px-6 py-4">담당 역할</th>
                   <th className="px-6 py-4">계획<br/><span className="text-[10px] text-slate-400">(시작~종료)</span></th>
                   <th className="px-6 py-4">실제<br/><span className="text-[10px] text-slate-400">(시작~종료)</span></th>
-                  <th className="px-6 py-4 text-right">관리</th>
+                  {isAdmin && <th className="px-6 py-4 text-right">관리</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -372,7 +371,7 @@ const MobilizationPlan: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    {(true) ? (
+                    {isAdmin && (
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end space-x-2">
                           <button 
@@ -391,7 +390,7 @@ const MobilizationPlan: React.FC = () => {
                           </button>
                         </div>
                       </td>
-                    ) : <td className="px-6 py-4 text-right"></td>}
+                    )}
                   </tr>
                 ))}
               </tbody>

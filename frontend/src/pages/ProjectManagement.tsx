@@ -37,7 +37,7 @@ const ProjectManagement: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-
+  const isAdmin = userProfile?.role === 'admin';
 
   useEffect(() => {
     fetchProjects();
@@ -156,11 +156,10 @@ const ProjectManagement: React.FC = () => {
 
       if (removedUsers.length > 0) {
         // user_id 에 해당하거나 offline_personnel_id 에 해당하는 데이터를 모두 삭제
-        const { error: delError } = await supabase.from('project_mobilizations')
+        await supabase.from('project_mobilizations')
           .delete()
           .eq('phase_id', editingPhase.id)
           .or(`user_id.in.(${removedUsers.join(',')}),offline_personnel_id.in.(${removedUsers.join(',')})`);
-        if (delError) throw delError;
       }
 
       if (addedUsers.length > 0) {
@@ -177,11 +176,9 @@ const ProjectManagement: React.FC = () => {
             role_description: editingPhase.phase_name + ' 투입 (자동 배정)',
             start_date: phasePlannedStart || new Date().toISOString().split('T')[0],
             end_date: phasePlannedEnd || new Date().toISOString().split('T')[0],
-            created_by: userProfile?.id,
           };
         });
-        const { error: insError } = await supabase.from('project_mobilizations').insert(plansToInsert);
-        if (insError) throw insError;
+        await supabase.from('project_mobilizations').insert(plansToInsert);
       }
 
       toast.success('스케줄(Phase) 및 투입 인원이 업데이트되었습니다.');
@@ -276,7 +273,6 @@ const ProjectManagement: React.FC = () => {
           .insert({
             name: projectName,
             description: projectDesc,
-            created_by: userProfile?.id,
             status: projectStatus,
             display_order: projects.length > 0 ? projects.length : 0
           })
@@ -351,7 +347,7 @@ const ProjectManagement: React.FC = () => {
             설계부터 시운전까지 전체 프로세스의 일정 지연(Delay) 및 선행(Ahead) 여부를 트래킹합니다.
           </p>
         </div>
-        {(true) && (
+        {isAdmin && (
           <button
             onClick={openCreateModal}
             className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-sky-500/20"
@@ -390,7 +386,7 @@ const ProjectManagement: React.FC = () => {
                   </h2>
                   <p className="text-sm text-slate-500 mt-1">{project.description}</p>
                 </div>
-                {(true) && (
+                {isAdmin && (
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleMoveProject(index, 'up')}
@@ -431,7 +427,7 @@ const ProjectManagement: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {project.phases.map(phase => (
                     <div key={phase.id} className={`p-4 rounded-lg border relative group ${getStatusColor(phase.status)}`}>
-                      {(true) && (
+                      {isAdmin && (
                         <button
                           onClick={() => openPhaseModal(phase)}
                           className="absolute top-2 right-2 p-1.5 bg-white rounded-md shadow-sm opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-sky-600 border border-slate-200 hover:border-sky-300"
