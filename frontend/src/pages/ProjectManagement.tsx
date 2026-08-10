@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Project, ProjectPhase } from '../types';
 import toast from 'react-hot-toast';
@@ -349,7 +349,7 @@ const ProjectManagement: React.FC = () => {
             설계부터 시운전까지 전체 프로세스의 일정 지연(Delay) 및 선행(Ahead) 여부를 트래킹합니다.
           </p>
         </div>
-        {isAdmin && (
+        {(true) && (
           <button
             onClick={openCreateModal}
             className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-sky-500/20"
@@ -388,7 +388,7 @@ const ProjectManagement: React.FC = () => {
                   </h2>
                   <p className="text-sm text-slate-500 mt-1">{project.description}</p>
                 </div>
-                {isAdmin && (
+                {(isAdmin || project.created_by === userProfile?.id) && (
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleMoveProject(index, 'up')}
@@ -429,7 +429,7 @@ const ProjectManagement: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {project.phases.map(phase => (
                     <div key={phase.id} className={`p-4 rounded-lg border relative group ${getStatusColor(phase.status)}`}>
-                      {isAdmin && (
+                      {(isAdmin || project.created_by === userProfile?.id) && (
                         <button
                           onClick={() => openPhaseModal(phase)}
                           className="absolute top-2 right-2 p-1.5 bg-white rounded-md shadow-sm opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-sky-600 border border-slate-200 hover:border-sky-300"

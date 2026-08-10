@@ -67,6 +67,7 @@ export interface ProjectPhase {
   status: ProjectPhaseStatus;
   required_personnel: number;
   display_order: number;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   
@@ -232,6 +233,7 @@ export interface Task {
   priority: PriorityLevel;
   due_date: string | null;
   display_order: number;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   
