@@ -68,8 +68,7 @@ const WeeklyReport = () => {
       const { data: pendingData } = await supabase
         .from('pending_items')
         .select('*, team:teams(*), assignee:user_profiles!assigned_to(*)')
-        .eq('is_completed', false)
-        .eq('priority', 'high');
+        .eq('is_completed', false);
       
       if (pendingData) setHighPriorityPending(pendingData);
 
@@ -320,8 +319,12 @@ const WeeklyReport = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-bold rounded">
-                            {issue.status === 'blocked' ? '지연' : '진행'}
+                          <span className={`px-1.5 py-0.5 font-bold rounded ${
+                            issue.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                            issue.status === 'blocked' ? 'bg-red-100 text-red-700' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>
+                            {issue.status === 'completed' ? '완료' : issue.status === 'blocked' ? '지연' : '진행'}
                           </span>
                         </td>
                       </tr>

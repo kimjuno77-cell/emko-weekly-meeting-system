@@ -147,28 +147,37 @@ export const updateTask = async (
     }
   }
 
-  // Pending 연동 업데이트 (상태 변경 시)
-  if (data && updates.status) {
-    let pendingStatus = 'pending';
-    if (updates.status === 'in_progress') pendingStatus = 'in_progress';
-    else if (updates.status === 'completed') pendingStatus = 'completed';
-    else if (updates.status === 'blocked') pendingStatus = 'waiting';
-    else if (updates.status === 'cancelled') pendingStatus = 'cancelled';
-
-    const isCompleted = updates.status === 'completed';
+  // Pending 연동 업데이트 (상태 또는 기타 정보 변경 시)
+  if (data) {
+    const pendingUpdates: any = {};
     
-    // 비동기로 안전하게 Pending 항목 업데이트 실행 (실패해도 Task 업데이트는 성공 반환)
-    supabase
-      .from('pending_items')
-      .update({
-        status: pendingStatus,
-        is_completed: isCompleted,
-        completed_date: isCompleted ? new Date().toISOString() : null
-      })
-      .eq('related_task_id', taskId)
-      .then(({ error }) => {
-        if (error) console.error('Pending 항목 동기화 실패:', error);
-      });
+    if (updates.title !== undefined) pendingUpdates.title = updates.title;
+    if (updates.description !== undefined) pendingUpdates.description = updates.description;
+    if (updates.priority !== undefined) pendingUpdates.priority = updates.priority;
+    if (updates.assigned_to !== undefined) pendingUpdates.assigned_to = updates.assigned_to;
+    
+    if (updates.status !== undefined) {
+      let pendingStatus = 'pending';
+      if (updates.status === 'in_progress') pendingStatus = 'in_progress';
+      else if (updates.status === 'completed') pendingStatus = 'completed';
+      else if (updates.status === 'blocked') pendingStatus = 'waiting';
+      else if (updates.status === 'cancelled') pendingStatus = 'cancelled';
+
+      pendingUpdates.status = pendingStatus;
+      pendingUpdates.is_completed = (updates.status === 'completed');
+      pendingUpdates.completed_date = updates.status === 'completed' ? new Date().toISOString().split('T')[0] : null;
+    }
+    
+    if (Object.keys(pendingUpdates).length > 0) {
+      // 비동기로 안전하게 Pending 항목 업데이트 실행 (실패해도 Task 업데이트는 성공 반환)
+      supabase
+        .from('pending_items')
+        .update(pendingUpdates)
+        .eq('related_task_id', taskId)
+        .then(({ error }) => {
+          if (error) console.error('Pending 항목 동기화 실패:', error);
+        });
+    }
   }
   
   return data;
