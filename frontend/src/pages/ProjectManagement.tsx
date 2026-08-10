@@ -156,10 +156,11 @@ const ProjectManagement: React.FC = () => {
 
       if (removedUsers.length > 0) {
         // user_id 에 해당하거나 offline_personnel_id 에 해당하는 데이터를 모두 삭제
-        await supabase.from('project_mobilizations')
+        const { error: delError } = await supabase.from('project_mobilizations')
           .delete()
           .eq('phase_id', editingPhase.id)
           .or(`user_id.in.(${removedUsers.join(',')}),offline_personnel_id.in.(${removedUsers.join(',')})`);
+        if (delError) throw delError;
       }
 
       if (addedUsers.length > 0) {
@@ -179,7 +180,8 @@ const ProjectManagement: React.FC = () => {
             created_by: userProfile?.id,
           };
         });
-        await supabase.from('project_mobilizations').insert(plansToInsert);
+        const { error: insError } = await supabase.from('project_mobilizations').insert(plansToInsert);
+        if (insError) throw insError;
       }
 
       toast.success('스케줄(Phase) 및 투입 인원이 업데이트되었습니다.');
