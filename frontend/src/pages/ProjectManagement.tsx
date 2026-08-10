@@ -37,7 +37,7 @@ const ProjectManagement: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isAdmin = userProfile?.role === 'admin';
+
 
   useEffect(() => {
     fetchProjects();
