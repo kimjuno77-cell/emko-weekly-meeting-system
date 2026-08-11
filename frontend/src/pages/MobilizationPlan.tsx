@@ -2,12 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { ProjectMobilization, Project, ProjectPhase, UserProfile } from '../types';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '../stores/authStore';
 import { Plus, X, Calendar, Briefcase, Trash2, Edit2, LayoutList, BarChartHorizontal } from 'lucide-react';
 import GanttChart, { GanttItem, ViewMode } from '../components/GanttChart';
 
 const MobilizationPlan: React.FC = () => {
-  const { userProfile } = useAuthStore();
   const [plans, setPlans] = useState<ProjectMobilization[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Project, ProjectPhase } from '../types';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '../stores/authStore';
 import { Plus, X, Calendar, Edit2, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 
 import { personnelService } from '../services/personnelService';
@@ -11,8 +10,29 @@ import { recommendPersonnel } from '../services/workloadService';
 const DEFAULT_PHASES = ['설계', '구매', '제작', '검사', '설치', '시운전'];
 
 const ProjectManagement: React.FC = () => {
-  const { userProfile } = useAuthStore();
   const [projects, setProjects] = useState<(Project & { phases: (ProjectPhase & { mobilizations: any[] })[] })[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  
+  const [projectName, setProjectName] = useState('');
+  const [projectDesc, setProjectDesc] = useState('');
+  const [projectStatus, setProjectStatus] = useState<'active' | 'completed' | 'on_hold'>('active');
+  
+  const [isPhaseModalOpen, setIsPhaseModalOpen] = useState(false);
+  const [editingPhase, setEditingPhase] = useState<ProjectPhase | null>(null);
+  const [phasePlannedStart, setPhasePlannedStart] = useState('');
+  const [phasePlannedEnd, setPhasePlannedEnd] = useState('');
+  const [phaseActualStart, setPhaseActualStart] = useState('');
+  const [phaseActualEnd, setPhaseActualEnd] = useState('');
+  const [phaseStatus, setPhaseStatus] = useState<'pending'|'in_progress'|'delayed'|'ahead'|'completed'>('pending');
+  const [phasePersonnel, setPhasePersonnel] = useState(0);
+  const [selectedPhaseUsers, setSelectedPhaseUsers] = useState<string[]>([]);
+  const [originalPhaseUsers, setOriginalPhaseUsers] = useState<string[]>([]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchProjects();
