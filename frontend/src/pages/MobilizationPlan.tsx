@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { ProjectMobilization, Project, ProjectPhase, UserProfile } from '../types';
 import toast from 'react-hot-toast';
@@ -32,7 +32,8 @@ const MobilizationPlan: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const isAdmin = userProfile?.role === 'admin';
+  // 일반회원도 투입 계획 관리가 가능하도록 모든 권한을 엽니다.
+  const isAdmin = true;
 
   useEffect(() => {
     fetchPlans();

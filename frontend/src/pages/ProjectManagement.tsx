@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Project, ProjectPhase } from '../types';
 import toast from 'react-hot-toast';
@@ -13,31 +13,6 @@ const DEFAULT_PHASES = ['설계', '구매', '제작', '검사', '설치', '시�
 const ProjectManagement: React.FC = () => {
   const { userProfile } = useAuthStore();
   const [projects, setProjects] = useState<(Project & { phases: (ProjectPhase & { mobilizations: any[] })[] })[]>([]);
-  const [users, setUsers] = useState<any[]>([]); // 합쳐진 사용자(정식+오프라인) 목록
-  const [loading, setLoading] = useState(true);
-  
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editProjectId, setEditProjectId] = useState<string | null>(null);
-  
-  const [projectName, setProjectName] = useState('');
-  const [projectDesc, setProjectDesc] = useState('');
-  const [projectStatus, setProjectStatus] = useState<'active' | 'completed' | 'on_hold'>('active');
-  
-  // Phase Edit State
-  const [isPhaseModalOpen, setIsPhaseModalOpen] = useState(false);
-  const [editingPhase, setEditingPhase] = useState<ProjectPhase | null>(null);
-  const [phasePlannedStart, setPhasePlannedStart] = useState('');
-  const [phasePlannedEnd, setPhasePlannedEnd] = useState('');
-  const [phaseActualStart, setPhaseActualStart] = useState('');
-  const [phaseActualEnd, setPhaseActualEnd] = useState('');
-  const [phaseStatus, setPhaseStatus] = useState<'pending'|'in_progress'|'delayed'|'ahead'|'completed'>('pending');
-  const [phasePersonnel, setPhasePersonnel] = useState(0);
-  const [selectedPhaseUsers, setSelectedPhaseUsers] = useState<string[]>([]);
-  const [originalPhaseUsers, setOriginalPhaseUsers] = useState<string[]>([]);
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const isAdmin = userProfile?.role === 'admin';
 
   useEffect(() => {
     fetchProjects();
@@ -347,15 +322,13 @@ const ProjectManagement: React.FC = () => {
             설계부터 시운전까지 전체 프로세스의 일정 지연(Delay) 및 선행(Ahead) 여부를 트래킹합니다.
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={openCreateModal}
-            className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-sky-500/20"
-          >
-            <Plus className="w-5 h-5" />
-            <span>새 프로젝트 추가</span>
-          </button>
-        )}
+        <button
+          onClick={openCreateModal}
+          className="flex items-center space-x-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md shadow-sky-500/20"
+        >
+          <Plus className="w-5 h-5" />
+          <span>새 프로젝트 추가</span>
+        </button>
       </div>
 
       <div className="space-y-6">
@@ -386,40 +359,38 @@ const ProjectManagement: React.FC = () => {
                   </h2>
                   <p className="text-sm text-slate-500 mt-1">{project.description}</p>
                 </div>
-                {isAdmin && (
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleMoveProject(index, 'up')}
-                      disabled={index === 0}
-                      className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400"
-                      title="위로 이동"
-                    >
-                      <ArrowUp className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleMoveProject(index, 'down')}
-                      disabled={index === projects.length - 1}
-                      className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400"
-                      title="아래로 이동"
-                    >
-                      <ArrowDown className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => openEditModal(project)}
-                      className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm"
-                      title="수정"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteProject(project.id, project.name)}
-                      className="p-2 text-slate-400 hover:text-red-600 bg-white rounded-lg border border-slate-200 hover:border-red-300 transition shadow-sm"
-                      title="삭제"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleMoveProject(index, 'up')}
+                    disabled={index === 0}
+                    className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400"
+                    title="위로 이동"
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleMoveProject(index, 'down')}
+                    disabled={index === projects.length - 1}
+                    className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400"
+                    title="아래로 이동"
+                  >
+                    <ArrowDown className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => openEditModal(project)}
+                    className="p-2 text-slate-400 hover:text-sky-600 bg-white rounded-lg border border-slate-200 hover:border-sky-300 transition shadow-sm"
+                    title="수정"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteProject(project.id, project.name)}
+                    className="p-2 text-slate-400 hover:text-red-600 bg-white rounded-lg border border-slate-200 hover:border-red-300 transition shadow-sm"
+                    title="삭제"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               
               <div className="p-5">
@@ -427,15 +398,13 @@ const ProjectManagement: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {project.phases.map(phase => (
                     <div key={phase.id} className={`p-4 rounded-lg border relative group ${getStatusColor(phase.status)}`}>
-                      {isAdmin && (
-                        <button
-                          onClick={() => openPhaseModal(phase)}
-                          className="absolute top-2 right-2 p-1.5 bg-white rounded-md shadow-sm opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-sky-600 border border-slate-200 hover:border-sky-300"
-                          title="스케줄 수정"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => openPhaseModal(phase)}
+                        className="absolute top-2 right-2 p-1.5 bg-white rounded-md shadow-sm opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-sky-600 border border-slate-200 hover:border-sky-300"
+                        title="스케줄 수정"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
                       <div className="flex justify-between items-start mb-2">
                         <span className="font-bold">{phase.phase_name}</span>
                       </div>
