@@ -1,4 +1,4 @@
-﻿// 설명: 팀별 주간 업데이트 작성 페이지 컴포넌트 (주차 선택, 지난주 미완료 항목 이관, 담당자 DB 선택, 2주간 비교)
+// 설명: 팀별 주간 업데이트 작성 페이지 컴포넌트 (주차 선택, 지난주 미완료 항목 이관, 담당자 DB 선택, 2주간 비교)
 
 import { Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -278,12 +278,15 @@ const TeamUpdate = () => {
       let importedCount = 0;
       for (const t of unclosedPrevTasks) {
         // 이미 가져온 항목인지 중복 확인
-        const isDuplicate = tasks.some((existing) => existing.title === t.title);
+        const isDuplicate = tasks.some((existing) => existing.title === t.title || existing.title === `[이관] ${t.title}`);
         if (!isDuplicate) {
-          await createTask({
+          const newTitle = t.title.startsWith('[이관]') ? t.title : `[이관] ${t.title}`;
+          const newTaskType = t.task_type === 'plan' ? 'progress' : t.task_type;
+          
+          const newTask = await createTask({
             weekly_update_id: weeklyUpdate.id,
-            task_type: 'progress',
-            title: `[이관] ${t.title}`,
+            task_type: newTaskType,
+            title: newTitle,
             description: t.description || '',
             progress_percentage: t.progress_percentage || 0,
             assigned_to: t.assigned_to || undefined,
@@ -292,12 +295,21 @@ const TeamUpdate = () => {
             status: t.status === 'completed' ? 'in_progress' : t.status,
             priority: t.priority
           });
+
+          // 기존 Pending 항목이 이 Task를 바라보고 있었다면, 새로 이관된 Task의 ID로 연결 업데이트 (중복 및 동기화 누락 방지)
+          if (newTask && newTask.id) {
+            await supabase
+              .from('pending_items')
+              .update({ related_task_id: newTask.id })
+              .eq('related_task_id', t.id);
+          }
+
           importedCount++;
         }
       }
 
       if (importedCount > 0) {
-        toast.success(`지난주 미완료 항목 ${importedCount}개가 이번주 실적으로 이관되었습니다!`);
+        toast.success(`지난주 미완료 항목 ${importedCount}개가 이번주 업무로 이관되었습니다!`);
         fetchWeeklyData(currentWeekStart, selectedTeamId, selectedProjectId);
       } else {
         toast('모든 미완료 항목이 이미 이번주 목록에 존재합니다.', { icon: 'ℹ️' });
@@ -357,6 +369,14 @@ const TeamUpdate = () => {
     const selectedMember = members.find((m) => m.id === taskAssigneeId);
     const finalAssigneeName = taskAssigneeName.trim() || selectedMember?.full_name || selectedMember?.email || '';
 
+    // 진행률과 상태 동기화 보장 (Pending 등 연동을 위해)
+    let finalStatus = taskStatus;
+    if (taskProgress === 100 && taskStatus !== 'completed') {
+      finalStatus = 'completed';
+    } else if (taskProgress < 100 && taskStatus === 'completed') {
+      finalStatus = 'in_progress';
+    }
+
     try {
       if (editingTask) {
         // 수정
@@ -368,7 +388,7 @@ const TeamUpdate = () => {
           progress_percentage: taskProgress,
           assigned_to: taskAssigneeId || undefined,
           assignee_name: finalAssigneeName,
-          status: taskStatus,
+          status: finalStatus,
           priority: taskPriority,
         });
         toast.success('작업이 수정되었습니다.');
@@ -382,7 +402,7 @@ const TeamUpdate = () => {
           progress_percentage: taskProgress,
           assigned_to: taskAssigneeId || undefined,
           assignee_name: finalAssigneeName,
-          status: taskStatus,
+          status: finalStatus,
           priority: taskPriority,
           display_order: tasks.length + 1,
         });
@@ -390,10 +410,10 @@ const TeamUpdate = () => {
         if (isPendingTrack && newTask && selectedTeamId) {
           try {
             let initialPendingStatus = 'pending';
-            if (taskStatus === 'in_progress') initialPendingStatus = 'in_progress';
-            else if (taskStatus === 'completed') initialPendingStatus = 'completed';
-            else if (taskStatus === 'blocked') initialPendingStatus = 'waiting';
-            else if (taskStatus === 'cancelled') initialPendingStatus = 'cancelled';
+            if (finalStatus === 'in_progress') initialPendingStatus = 'in_progress';
+            else if (finalStatus === 'completed') initialPendingStatus = 'completed';
+            else if (finalStatus === 'blocked') initialPendingStatus = 'waiting';
+            else if (finalStatus === 'cancelled') initialPendingStatus = 'cancelled';
 
             await createPendingItem({
               team_id: selectedTeamId,
