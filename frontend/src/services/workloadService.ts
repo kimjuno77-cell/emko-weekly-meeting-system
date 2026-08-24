@@ -61,11 +61,15 @@ export const calculateWorkloadRanking = (
     
     const cumulativeHours = calculateManHours(personMobs, weekStartDate, weekEndDate);
     
-    const currentConcurrentProjects = personMobs.filter(m => {
+    const activeProjectIds = new Set<string>();
+    personMobs.forEach(m => {
       const s = new Date(m.start_date).getTime();
       const e = new Date(m.end_date).getTime();
-      return today >= s && today <= e;
-    }).length;
+      if (today >= s && today <= e) {
+        activeProjectIds.add(m.project_id);
+      }
+    });
+    const currentConcurrentProjects = activeProjectIds.size;
     
     return {
       ...person,
