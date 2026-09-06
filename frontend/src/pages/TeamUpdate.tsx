@@ -38,6 +38,8 @@ import {
 import { parseISO } from 'date-fns';
 import TaskFeedback from '@/components/TaskFeedback';
 import { useAuthStore } from '@/stores/authStore';
+// 설명: 고성능 리치 텍스트 에디터 및 뷰어 컴포넌트 임포트
+import { RichTextEditor, RichTextViewer } from '@/components/RichTextEditor';
 
 const TeamUpdate = () => {
   const { userProfile } = useAuthStore();
@@ -691,7 +693,12 @@ const TeamUpdate = () => {
                   {prevPlans.map((p) => (
                     <div key={p.id} className="p-3 bg-white/10 rounded-xl text-xs space-y-1">
                       <p className="font-bold text-slate-100">{p.title}</p>
-                      {p.description && <p className="text-slate-400 text-[11px]">{p.description}</p>}
+                      {/* 설명: 리치 텍스트 서식 및 첨부 이미지를 안전하게 표시하는 뷰어 적용 */}
+                      {p.description && (
+                        <div className="pt-0.5">
+                          <RichTextViewer content={p.description} compact={true} className="text-slate-300 text-[11px]" />
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-[10px] text-slate-300 pt-1">
                         <span>담당: {p.assignee_name || p.assignee?.full_name || '미지정'}</span>
                         <span className="text-sky-300 font-semibold">예정 진행률: {p.progress_percentage}%</span>
@@ -722,7 +729,12 @@ const TeamUpdate = () => {
                           </span>
                         )}
                       </div>
-                      {t.description && <p className="text-slate-400 text-[11px]">{t.description}</p>}
+                      {/* 설명: 리치 텍스트 서식 및 첨부 이미지를 안전하게 표시하는 뷰어 적용 */}
+                      {t.description && (
+                        <div className="pt-0.5">
+                          <RichTextViewer content={t.description} compact={true} className="text-slate-300 text-[11px]" />
+                        </div>
+                      )}
 
                       {/* 진행률 바 */}
                       <div className="flex items-center gap-2">
@@ -882,11 +894,11 @@ const TeamUpdate = () => {
         </div>
       </div>
 
-      {/* 작업 입력/수정 모달 */}
+      {/* 작업 입력/수정 모달 - 리치 텍스트 편집 및 캡처 이미지 확인을 위해 너비를 넉넉하게 확장 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden animate-zoomIn">
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-zoomIn">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
               <h3 className="font-extrabold text-slate-900 text-sm">
                 {editingTask ? '작업 항목 수정' : '새 작업 항목 추가'} (
                 {modalType === 'progress' ? '주요 실적' : modalType === 'issue' ? '이슈사항' : '차주 계획'})
@@ -896,7 +908,7 @@ const TeamUpdate = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveTask} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleSaveTask} className="p-6 space-y-4 text-xs overflow-y-auto">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">작업 제목 *</label>
                 <input
@@ -909,14 +921,14 @@ const TeamUpdate = () => {
                 />
               </div>
 
+              {/* 설명: 단순 textarea 대신 고성능 리치 텍스트 에디터(서식 툴바 + 캡처화면 Ctrl+V 붙여넣기 지원) 적용 */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">상세 내용 (선택)</label>
-                <textarea
+                <label className="block font-bold text-slate-700 mb-1">상세 내용 (선택, 화면 캡처 Ctrl+V 붙여넣기 가능)</label>
+                <RichTextEditor
                   value={taskDesc}
-                  onChange={(e) => setTaskDesc(e.target.value)}
-                  placeholder="세부 추진 내용 및 현황 정보"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  onChange={(content) => setTaskDesc(content)}
+                  placeholder="세부 추진 내용 및 현황 정보 (화면 캡처 복사 후 Ctrl+V로 붙여넣기 가능)"
+                  minHeight="140px"
                 />
               </div>
 
@@ -1051,7 +1063,12 @@ const TaskCard = ({
               </span>
             )}
           </div>
-          {task.description && <p className="text-[11px] text-slate-500 line-clamp-2">{task.description}</p>}
+          {/* 설명: 리치 텍스트 서식 및 이미지를 렌더링하는 컴팩트 뷰어 적용 */}
+          {task.description && (
+            <div className="pt-0.5">
+              <RichTextViewer content={task.description} compact={true} className="text-[11px] text-slate-500" />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

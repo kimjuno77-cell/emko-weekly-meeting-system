@@ -21,6 +21,9 @@ import {
 import html2pdf from 'html2pdf.js';
 import * as XLSX from 'xlsx';
 
+// 설명: 리치 텍스트 서식 및 캡처 이미지를 렌더링하는 뷰어 컴포넌트 임포트
+import { RichTextViewer } from '@/components/RichTextEditor';
+
 const WeeklyReport = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [weeklyUpdates, setWeeklyUpdates] = useState<WeeklyUpdate[]>([]);
@@ -311,7 +314,10 @@ const WeeklyReport = () => {
                         <td className="px-3 py-3 font-bold text-slate-900 truncate">{issue.teamName}</td>
                         <td className="px-3 py-3 space-y-1 break-words">
                           <p className="font-bold text-slate-800">{issue.title}</p>
-                          {issue.description && <p className="text-slate-500 whitespace-pre-wrap">{issue.description}</p>}
+                          {/* 설명: 리치 텍스트 뷰어로 이슈 세부 내용 렌더링 */}
+                          {issue.description && (
+                            <RichTextViewer content={issue.description} className="text-slate-500 text-xs mt-1" />
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className="px-1.5 py-0.5 bg-red-100 text-red-700 font-bold rounded">
@@ -358,7 +364,10 @@ const WeeklyReport = () => {
                         <td className="px-3 py-3 font-bold text-slate-800 truncate">{item.team?.name}</td>
                         <td className="px-3 py-3 space-y-1 break-words">
                           <p className="font-bold text-slate-800">{item.title}</p>
-                          {item.description && <p className="text-slate-500 whitespace-pre-wrap">{item.description}</p>}
+                          {/* 설명: 리치 텍스트 뷰어로 Pending 세부 내용 렌더링 */}
+                          {item.description && (
+                            <RichTextViewer content={item.description} className="text-slate-500 text-xs mt-1" />
+                          )}
                         </td>
                         <td className="px-4 py-3 font-semibold text-slate-700">{item.assignee?.full_name || '미배정'}</td>
                         <td className="px-4 py-3 text-center font-bold text-rose-600">{item.target_date || '-'}</td>
@@ -433,7 +442,11 @@ const WeeklyReport = () => {
                                       <span className="text-slate-300 mt-0.5">•</span>
                                       <span className="font-bold text-slate-700">{t.title}</span>
                                     </div>
-                                    {t.description && <p className="text-[10px] text-slate-500 pl-3 leading-relaxed">{t.description}</p>}
+                                    {t.description && (
+                                      <div className="pl-3">
+                                        <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -454,7 +467,11 @@ const WeeklyReport = () => {
                                       <span className="font-extrabold text-slate-800">{t.title}</span>
                                       {t.progress_percentage > 0 && <span className="text-[10px] text-sky-600 font-bold bg-sky-50 px-1 rounded">({t.progress_percentage}%)</span>}
                                     </div>
-                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-relaxed">{t.description}</p>}
+                                    {t.description && (
+                                      <div className="pl-4">
+                                        <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -474,7 +491,11 @@ const WeeklyReport = () => {
                                       <span className="text-rose-400 mt-0.5">!</span>
                                       <span className="font-bold text-slate-800">{t.title}</span>
                                     </div>
-                                    {t.description && <p className="text-[10px] text-slate-500 pl-3 leading-relaxed">{t.description}</p>}
+                                    {t.description && (
+                                      <div className="pl-3">
+                                        <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -493,7 +514,11 @@ const WeeklyReport = () => {
                                       <span className="text-emerald-400 mt-0.5">→</span>
                                       <span className="font-bold text-slate-800">{t.title}</span>
                                     </div>
-                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-relaxed">{t.description}</p>}
+                                    {t.description && (
+                                      <div className="pl-4">
+                                        <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -510,7 +535,11 @@ const WeeklyReport = () => {
                                   <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
                                     <span className="font-bold text-slate-800">{t.title}</span>
                                     {t.progress_percentage > 0 && <span className="ml-1 text-[10px] text-sky-600 font-semibold">({t.progress_percentage}%)</span>}
-                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                    {t.description && (
+                                      <div className="pl-4">
+                                        <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -523,7 +552,11 @@ const WeeklyReport = () => {
                                 {issueList.map((t) => (
                                   <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
                                     <span className="font-bold text-slate-800">{t.title}</span>
-                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                    {t.description && (
+                                      <div className="pl-4">
+                                        <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -536,7 +569,11 @@ const WeeklyReport = () => {
                                 {planList.map((t) => (
                                   <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
                                     <span className="font-bold text-slate-800">{t.title}</span>
-                                    {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                    {t.description && (
+                                      <div className="pl-4">
+                                        <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                      </div>
+                                    )}
                                   </li>
                                 ))}
                               </ul>
@@ -584,7 +621,11 @@ const WeeklyReport = () => {
                                     <span className="text-slate-300 mt-0.5">•</span>
                                     <span className="font-bold text-slate-700">{t.title}</span>
                                   </div>
-                                  {t.description && <p className="text-[10px] text-slate-500 pl-3 leading-relaxed">{t.description}</p>}
+                                  {t.description && (
+                                    <div className="pl-3">
+                                      <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -605,7 +646,11 @@ const WeeklyReport = () => {
                                     <span className="font-extrabold text-slate-800">{t.title}</span>
                                     {t.progress_percentage > 0 && <span className="text-[10px] text-sky-600 font-bold bg-sky-50 px-1 rounded">({t.progress_percentage}%)</span>}
                                   </div>
-                                  {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-relaxed">{t.description}</p>}
+                                  {t.description && (
+                                    <div className="pl-4">
+                                      <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -625,7 +670,11 @@ const WeeklyReport = () => {
                                     <span className="text-rose-400 mt-0.5">!</span>
                                     <span className="font-bold text-slate-800">{t.title}</span>
                                   </div>
-                                  {t.description && <p className="text-[10px] text-slate-500 pl-3 leading-relaxed">{t.description}</p>}
+                                  {t.description && (
+                                    <div className="pl-3">
+                                      <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -644,7 +693,11 @@ const WeeklyReport = () => {
                                     <span className="text-emerald-400 mt-0.5">→</span>
                                     <span className="font-bold text-slate-800">{t.title}</span>
                                   </div>
-                                  {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-relaxed">{t.description}</p>}
+                                  {t.description && (
+                                    <div className="pl-4">
+                                      <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -661,7 +714,11 @@ const WeeklyReport = () => {
                                 <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
                                   <span className="font-bold text-slate-800">{t.title}</span>
                                   {t.progress_percentage > 0 && <span className="ml-1 text-[10px] text-sky-600 font-semibold">({t.progress_percentage}%)</span>}
-                                  {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                  {t.description && (
+                                    <div className="pl-4">
+                                      <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -674,7 +731,11 @@ const WeeklyReport = () => {
                               {issueList.map((t) => (
                                 <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
                                   <span className="font-bold text-slate-800">{t.title}</span>
-                                  {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                  {t.description && (
+                                    <div className="pl-4">
+                                      <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
@@ -687,7 +748,11 @@ const WeeklyReport = () => {
                               {planList.map((t) => (
                                 <li key={t.id} className="text-xs text-slate-700 list-disc list-inside space-y-0.5">
                                   <span className="font-bold text-slate-800">{t.title}</span>
-                                  {t.description && <p className="text-[10px] text-slate-500 pl-4 leading-normal">{t.description}</p>}
+                                  {t.description && (
+                                    <div className="pl-4">
+                                      <RichTextViewer content={t.description} className="text-[11px] text-slate-500" />
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                             </ul>
